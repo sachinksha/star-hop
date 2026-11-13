@@ -48,6 +48,9 @@ function assertHomeIsFinal(before: GameState, after: GameState) {
   }
 }
 
+/** Full games with invariant checks after every action take a few seconds each. */
+const SIM_TIMEOUT = 60_000
+
 type Chooser = (g: GameState, rng: Rng) => Move
 
 const botChoice: Chooser = (g, rng) => chooseBotMove(g, rng)!
@@ -96,13 +99,13 @@ describe('bot-only games (simulation)', () => {
         expect(g.winners).toHaveLength(colors.length)
         expect(new Set(g.winners).size).toBe(colors.length)
       }
-    })
+    }, SIM_TIMEOUT)
   }
 
   it('replaying the action log reproduces the final state exactly', () => {
     const { initial, g, actions } = play(['red', 'yellow', 'blue'], 42, botChoice, 20000)
     expect(replay(initial, actions).state).toEqual(g)
-  })
+  }, SIM_TIMEOUT)
 })
 
 describe('random-move games (simulation)', () => {
@@ -110,5 +113,5 @@ describe('random-move games (simulation)', () => {
     for (let seed = 1; seed <= 10; seed++) {
       play(TABLES[seed % TABLES.length]!, seed, randomChoice, 4000)
     }
-  })
+  }, SIM_TIMEOUT)
 })

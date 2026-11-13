@@ -183,3 +183,21 @@ export function autoMove(color: Color, legalMoves: Move[]): Move | null {
   const same = legalMoves.every((m) => spotKey(color, m.from) === from && spotKey(color, m.to) === to)
   return same ? first : null
 }
+
+/**
+ * The players after `color` plays `move`: the marble moves, and a bumped
+ * opponent goes back to its base. Turn order, ranks and events are the
+ * engine's job; bots use this to look at the board after a candidate move.
+ */
+export function playersAfterMove(players: Player[], color: Color, move: Move): Player[] {
+  return players.map((p) => {
+    if (p.color === color) {
+      return { ...p, marbles: p.marbles.map((m) => (m.id === move.marbleId ? { ...m, spot: move.to } : m)) }
+    }
+    if (move.bumped && p.color === move.bumped.color) {
+      const victim = move.bumped.marbleId
+      return { ...p, marbles: p.marbles.map((m) => (m.id === victim ? { ...m, spot: { kind: 'base' as const } } : m)) }
+    }
+    return p
+  })
+}

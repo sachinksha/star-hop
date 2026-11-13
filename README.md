@@ -48,6 +48,25 @@ Rules marked *house rule* are where the traditional rules are silent or vague. T
 
 Team play is not supported yet (planned).
 
+## Bots
+
+Each bot gets a random persona every game (balanced, hunter, guardian or racer), with its weights nudged ±15% so no two bots play exactly alike. A bot scores every legal move and plays the best one, with a small random nudge on close calls. It weighs:
+
+- what the move does: gets a marble home, bumps an opponent (more for a far-travelled one), brings a marble out, gains steps, lands on a star or in the centre;
+- **danger**: the chance an opponent can bump the moved marble next turn, against how far that marble has come, plus credit for moving a threatened marble away;
+- **attack**: how many opponents the moved marble could bump next turn.
+
+Reach is worked out with the real move generator for every die value, so star hops, the centre exit and bumps on start holes all count.
+
+| Persona | Style |
+| --- | --- |
+| Balanced | A bit of everything |
+| Hunter | Chases bumps, parks within reach of opponents, takes risks |
+| Guardian | Avoids holes opponents can reach; uses the centre only when it saves a lot |
+| Racer | Pushes lead marbles home and loves shortcuts |
+
+In tests every persona beats a random mover in at least 75% of 2-player games. In bot-only tournaments the personas win at roughly fair rates: 40–57% each with 2 players (fair is 50%), 18–39% each with 4 players (fair is 25%).
+
 ## Architecture
 
 The design is the same as the Ludo game's (see `LEARNINGS.md` in that project):

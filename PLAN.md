@@ -204,7 +204,7 @@ The prompt line names the step ("Pick a marble: 1–4", "Pick where: 1–5, Esc 
 
 Each phase ends with passing tests, a clean lint, and a commit (when you ask for one).
 
-**Status (2026-11-13):** phases 0 (local part), 1 and 2 are done, with 76 tests passing. Still open in phase 0: the Vercel project and the TURN check. The first version of `bot.ts` scores only a move's own value; danger and attack come in phase 3.
+**Status (2026-11-13):** phases 0 (local part), 1, 2 and 3 are done, with 97 tests passing. Still open in phase 0: the Vercel project and the TURN check. Next is phase 4 (store and pipeline).
 
 | Phase | Work | Done when |
 | --- | --- | --- |

@@ -6,7 +6,7 @@
  */
 import { createBotProfile } from './bot'
 import { COLORS, ENTRY_ROLLS, armOf, progressOf, sameSpot } from './board'
-import { legalMovesFor } from './rules'
+import { legalMovesFor, playersAfterMove } from './rules'
 import {
   MARBLES_PER_PLAYER,
   type BotProfile,
@@ -227,16 +227,7 @@ export function applyMove(state: GameState, marbleId: number, to: Spot): GameSta
   const mover = current(state)
   const events: GameEvent[] = [{ type: 'move', move, color: mover.color }]
 
-  const players: Player[] = state.players.map((p, i) => {
-    if (i === idx) {
-      return { ...p, marbles: p.marbles.map((m) => (m.id === marbleId ? { ...m, spot: move.to } : m)) }
-    }
-    if (move.bumped && p.color === move.bumped.color) {
-      const victim = move.bumped.marbleId
-      return { ...p, marbles: p.marbles.map((m) => (m.id === victim ? { ...m, spot: { kind: 'base' as const } } : m)) }
-    }
-    return p
-  })
+  const players = playersAfterMove(state.players, mover.color, move)
   if (move.bumped) events.push({ type: 'bump', color: mover.color, victim: move.bumped.color })
 
   // Finish: every marble of this seat is home.
