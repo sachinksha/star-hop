@@ -10,15 +10,21 @@
   --accent-ink: #ffffff;
   --danger: #b42318;
   --focus: #2f5fd0;
-  --board: #23304d;
-  --board-edge: #182238;
-  --hole: #121a2c;
-  --hole-rim: #3d4c70;
-  --ring: #c9a64a;
-  --star: #f2c94c;
-  --star-edge: #b88a16;
+  /* Board, light: warm cream board, dark track holes, colour-tinted arms. */
+  --board: #ebe2cd;
+  --board-edge: #b8a77f;
+  --arm-tint: 24%;
+  --arm-edge: 72%;
+  --arm-empty: 7%;
+  --hole: #262a33;
+  --hole-rim: #85775a;
+  --ring: #a4823a;
+  --spoke: 0.5;
+  --star: #f4c542;
+  --star-edge: #946b0c;
   --badge: #ffffff;
   --badge-ink: #1f2430;
+  --veil: rgb(30 26 18 / 0.45);
   --shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 4px 14px rgb(0 0 0 / 0.06);
 
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -42,7 +48,16 @@
     --focus: #8fb0ff;
     --board: #1c2740;
     --board-edge: #0c111d;
+    --arm-tint: 32%;
+    --arm-edge: 60%;
+    --arm-empty: 10%;
+    --hole: #0e1424;
+    --hole-rim: #3d4c70;
+    --ring: #c9a64a;
+    --spoke: 0.45;
+    --star-edge: #b88a16;
     --badge: #fff8e6;
+    --veil: rgb(8 10 16 / 0.6);
     color-scheme: dark;
   }
 }
@@ -60,7 +75,16 @@
   --focus: #8fb0ff;
   --board: #1c2740;
   --board-edge: #0c111d;
+  --arm-tint: 32%;
+  --arm-edge: 60%;
+  --arm-empty: 10%;
+  --hole: #0e1424;
+  --hole-rim: #3d4c70;
+  --ring: #c9a64a;
+  --spoke: 0.45;
+  --star-edge: #b88a16;
   --badge: #fff8e6;
+  --veil: rgb(8 10 16 / 0.6);
   color-scheme: dark;
 }
 
@@ -190,21 +214,24 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .board-wrap { position: relative; }
 .board { display: block; width: 100%; height: auto; max-height: calc(100dvh - 8rem); }
 .board-bg { fill: var(--board); stroke: var(--board-edge); stroke-width: 0.15; }
-.arm { fill: color-mix(in srgb, var(--arm) 32%, var(--board)); stroke: color-mix(in srgb, var(--arm) 60%, var(--board)); stroke-width: 0.06; stroke-linejoin: round; }
-.arm-empty { fill: color-mix(in srgb, var(--arm) 10%, var(--board)); stroke: color-mix(in srgb, var(--arm) 25%, var(--board)); }
+.arm { fill: color-mix(in srgb, var(--arm) var(--arm-tint), var(--board)); stroke: color-mix(in srgb, var(--arm) var(--arm-edge), var(--board)); stroke-width: 0.06; stroke-linejoin: round; }
+.arm-empty { fill: color-mix(in srgb, var(--arm) var(--arm-empty), var(--board)); stroke: color-mix(in srgb, var(--arm) 25%, var(--board)); }
 .arm-active { stroke: var(--arm); stroke-width: 0.14; }
+/* Each player's base: a solid pad in their colour, with darker holes. */
+.base-pad { fill: var(--arm); stroke: color-mix(in srgb, var(--arm) 70%, #000); stroke-width: 0.06; stroke-linejoin: round; }
+.base-pad-empty { fill: color-mix(in srgb, var(--arm) 30%, var(--board)); stroke: color-mix(in srgb, var(--arm) 40%, var(--board)); }
 .star-ring { fill: none; stroke: var(--ring); stroke-width: 0.07; stroke-dasharray: 0.2 0.16; opacity: 0.8; }
-.spoke { stroke: var(--ring); stroke-width: 0.12; opacity: 0.45; }
+.spoke { stroke: var(--ring); stroke-width: 0.12; opacity: var(--spoke); }
 .star { fill: var(--star); stroke: var(--star-edge); stroke-width: 0.05; stroke-linejoin: round; }
-.center-ring { fill: none; stroke: var(--star); stroke-width: 0.1; }
-.home-lane { stroke: var(--arm); stroke-width: 0.86; stroke-linecap: round; opacity: 0.55; }
+.center-ring { fill: none; stroke: var(--star-edge); stroke-width: 0.1; }
+.home-lane { stroke: var(--arm); stroke-width: 0.9; stroke-linecap: round; opacity: 0.9; }
 .home-arrow { stroke: var(--arm); stroke-width: 0.12; stroke-dasharray: 0.12 0.1; }
 .hole { fill: var(--hole); stroke: var(--hole-rim); stroke-width: 0.05; }
 .hole-start { stroke: var(--arm); stroke-width: 0.14; }
 .hole-star { stroke: var(--star-edge); }
-.hole-center { stroke: var(--star); stroke-width: 0.1; }
-.hole-home { stroke: var(--arm); }
-.hole-base { fill: color-mix(in srgb, var(--hole) 75%, var(--arm)); stroke: var(--arm); }
+.hole-center { stroke: var(--star-edge); stroke-width: 0.1; }
+.hole-home { fill: color-mix(in srgb, var(--arm) 35%, #000); stroke: color-mix(in srgb, var(--arm) 60%, #000); }
+.hole-base { fill: color-mix(in srgb, var(--arm) 40%, #000); stroke: color-mix(in srgb, var(--arm) 55%, #000); }
 
 .marble { transition: transform 0.13s linear; }
 .marble-body { fill: var(--arm); stroke: rgb(0 0 0 / 0.55); stroke-width: 0.04; }
@@ -242,7 +269,7 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 kbd { font: inherit; font-size: 0.8rem; padding: 0.05rem 0.35rem; border-radius: 5px; border: 1px solid var(--line); background: var(--surface-2); }
 
 /* ---------- Overlays ---------- */
-.pause-veil { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; background: rgb(18 21 29 / 0.55); color: #fff; border-radius: 50%; font-size: 1.2rem; font-weight: 600; }
+.pause-veil { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; background: var(--veil); color: #fff; border-radius: 50%; font-size: 1.2rem; font-weight: 600; }
 .pause-veil button { display: inline-flex; align-items: center; gap: 0.4rem; }
 .table-paused .board { filter: saturate(0.6); }
 .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(10 12 18 / 0.55); }

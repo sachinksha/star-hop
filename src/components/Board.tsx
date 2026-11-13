@@ -8,6 +8,7 @@ import {
   STAR_RADIUS,
   VIEW_HALF,
   armOutline,
+  baseOutline,
   basePoint,
   homePoint,
   loopPoint,
@@ -57,12 +58,20 @@ const onActivate = (fn: () => void) => (e: KeyboardEvent) => {
 function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Set<Color>; activeColor: Color | null }) {
   return (
     <g aria-hidden="true">
-      <circle className="board-bg" cx={0} cy={0} r={VIEW_HALF - 0.1} />
+      <circle className="board-bg" cx={0} cy={0} r={VIEW_HALF - 0.15} />
       {COLORS.map((color, arm) => (
         <polygon
           key={`arm-${color}`}
           className={`arm${seated.has(color) ? '' : ' arm-empty'}${color === activeColor ? ' arm-active' : ''}`}
           points={armOutline(arm, bottom)}
+          style={{ ['--arm' as string]: COLOR_HEX[color] }}
+        />
+      ))}
+      {COLORS.map((color, arm) => (
+        <polygon
+          key={`base-${color}`}
+          className={`base-pad${seated.has(color) ? '' : ' base-pad-empty'}`}
+          points={baseOutline(arm, bottom)}
           style={{ ['--arm' as string]: COLOR_HEX[color] }}
         />
       ))}

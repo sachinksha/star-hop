@@ -38,7 +38,7 @@ export const STAR_RADIUS = 3
 /** Distance from the centre to the base holes. */
 const BASE_ALONG = ARM_INNER + 6.3
 /** The square viewBox needed to fit everything, centred on (0, 0). */
-export const VIEW_HALF = 10.6
+export const VIEW_HALF = 10.8
 
 const DEG = Math.PI / 180
 
@@ -104,13 +104,29 @@ export function marblePoint(color: Color, marbleId: number, spot: Spot, bottom: 
  * SVG polygon points string.
  */
 export function armOutline(arm: number, bottom: number): string {
+  // The arm ends where its base pad begins; the pad caps it.
   const near = ARM_INNER - 0.65
-  const far = BASE_ALONG + 0.7
+  const far = BASE_ALONG - 0.6
   const side = ARM_HALF + 0.62
   return [
     armPoint(arm, bottom, near, -side),
-    armPoint(arm, bottom, far, -side - 0.35),
-    armPoint(arm, bottom, far, side + 0.35),
+    armPoint(arm, bottom, far, -side - 0.3),
+    armPoint(arm, bottom, far, side + 0.3),
+    armPoint(arm, bottom, near, side),
+  ]
+    .map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`)
+    .join(' ')
+}
+
+/** Corners of the solid pad behind an arm's four base holes, as an SVG polygon points string. */
+export function baseOutline(arm: number, bottom: number): string {
+  const near = BASE_ALONG - 0.6
+  const far = BASE_ALONG + 0.6
+  const side = 2.05
+  return [
+    armPoint(arm, bottom, near, -side),
+    armPoint(arm, bottom, far, -side),
+    armPoint(arm, bottom, far, side),
     armPoint(arm, bottom, near, side),
   ]
     .map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`)
