@@ -13,6 +13,16 @@ npm test        # all tests
 npm run build   # typecheck and production build
 ```
 
+## How to play
+
+Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human or Bot. Your arm is drawn at the bottom of the board.
+
+- **Roll:** with Auto roll on (the default) your die rolls by itself. Otherwise press Space or tap the die.
+- **Pick a marble:** marbles you can move glow. Tap one, or press its number (1 to 4). If it can only go one place, it moves straight away. With Auto move on, a roll that leaves no real choice plays itself.
+- **Pick where it goes:** when a marble has several destinations (on a star, near the centre), each gets a numbered badge on the board, 1 being the one closest to home and the centre always last. Tap a badge or press its number. Hover or focus a badge to see the path; Esc goes back.
+- Undo/redo (← →), pause (P), log (L), new game (N) and settings (S) are on the toolbar and the keyboard.
+- Refreshing the page keeps your game: it comes back paused.
+
 ## The board
 
 Six arms around a ring of stars, with one hole in the middle:

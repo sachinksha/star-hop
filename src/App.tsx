@@ -1,9 +1,26 @@
-/** Placeholder until the UI phase: the rules engine comes first. */
+import { GameScreen } from './components/GameScreen'
+import { SetupScreen } from './components/SetupScreen'
+import { useStarHopGame } from './hooks/useStarHopGame'
+import { useGameStore } from './store/gameStore'
+
+/**
+ * Chooses the screen from the store. A game in progress wins, keyed by session
+ * so a new game remounts all timing state. Otherwise, setup.
+ */
 export default function App() {
+  const game = useGameStore((s) => s.game)
+  const session = useGameStore((s) => s.session)
+  const start = useGameStore((s) => s.start)
+  const lastConfigs = useGameStore((s) => s.lastConfigs)
+
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: 24 }}>
-      <h1>Star Hop</h1>
-      <p>A marble race game for 2 to 6 players. Coming soon.</p>
+    <main className="app">
+      {game ? <GameSession key={session} /> : <SetupScreen onStart={(configs) => start(configs)} initial={lastConfigs} />}
     </main>
   )
+}
+
+function GameSession() {
+  const hop = useStarHopGame()
+  return <GameScreen hop={hop} />
 }

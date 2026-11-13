@@ -1,4 +1,5 @@
-import type { Color, GameEvent, Move } from './types'
+import { COLORS, SECTOR_LENGTH, isStar, stepsToHome } from './board'
+import type { Color, GameEvent, Move, Player } from './types'
 
 /** Colour names used in the game log. Kept here so the rules layer has no UI imports. */
 export const COLOR_NAME: Record<Color, string> = {
@@ -51,4 +52,70 @@ export function describeEvent(event: GameEvent): string | null {
     case 'gameOver':
       return event.early ? 'Game ended early. Unfinished players are ranked by progress' : null
   }
+}
+
+/** Names a star by the arm it leads into: S_a sits just before arm a. */
+function starName(pos: number, mover: Color): string {
+  const arm = COLORS[pos / SECTOR_LENGTH]!
+  return arm === mover ? 'your home star' : `the star by the ${COLOR_NAME[arm]} arm`
+}
+
+/**
+ * Spoken label for a destination badge, e.g. "Hop 2 stars, then 4 holes.
+ * 18 steps from home. Bumps Bot 2". `players` names a bumped marble's owner.
+ */
+export function destinationLabel(move: Move, mover: Color, players: Player[]): string {
+  const holes = (n: number) => (n === 1 ? '1 hole' : `${n} holes`)
+  let where: string
+  switch (move.via) {
+    case 'enter':
+      where = 'Out of base onto your start'
+      break
+    case 'toCenter':
+      where = 'Into the centre'
+      break
+    case 'fromCenter':
+      where = `Out of the centre to ${move.to.kind === 'loop' ? starName(move.to.pos, mover) : 'a star'}`
+      break
+    case 'hop': {
+      const stars = move.hops === 1 ? '1 star' : `${move.hops} stars`
+      const walked = move.path.length - move.hops
+      where = walked > 0 ? `Hop ${stars}, then ${holes(walked)}` : `Hop ${stars}`
+      if (walked === 0 && move.to.kind === 'loop') where += ` to ${starName(move.to.pos, mover)}`
+      break
+    }
+    case 'walk':
+      where = move.to.kind === 'home' ? `Into home hole ${move.to.slot + 1}` : `Walk ${holes(move.path.length)}`
+      if (move.to.kind === 'loop' && isStar(move.to.pos)) where += ` to ${starName(move.to.pos, mover)}`
+  }
+  const parts = [where]
+  if (move.to.kind === 'loop') parts.push(`${stepsToHome(mover, move.to)} steps from home`)
+  if (move.bumped) {
+    const victim = players.find((p) => p.color === move.bumped!.color)
+    parts.push(`Bumps ${victim?.name ?? COLOR_NAME[move.bumped.color]}`)
+  }
+  return parts.join('. ')
+}
+
+/**
+ * A text version of the board for screen readers: where each player's marbles
+ * are, e.g. "Red (You): 2 in base, 1 on the loop 30 steps from home, 1 in home".
+ */
+export function describeBoard(players: Player[]): string[] {
+  return players.map((p) => {
+    const base = p.marbles.filter((m) => m.spot.kind === 'base').length
+    const home = p.marbles.filter((m) => m.spot.kind === 'home').length
+    const parts: string[] = []
+    if (base) parts.push(`${base} in base`)
+    for (const m of p.marbles) {
+      if (m.spot.kind === 'loop') {
+        const star = isStar(m.spot.pos) ? ' on a star' : ''
+        parts.push(`marble ${m.id + 1}${star} ${stepsToHome(p.color, m.spot)} steps from home`)
+      }
+      if (m.spot.kind === 'center') parts.push(`marble ${m.id + 1} in the centre`)
+    }
+    if (home) parts.push(`${home} in home`)
+    const rank = p.finishRank !== null ? `, finished ${p.finishRank}` : ''
+    return `${COLOR_NAME[p.color]} (${p.name}${rank}): ${parts.join(', ')}`
+  })
 }
