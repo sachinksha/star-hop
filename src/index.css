@@ -95,7 +95,8 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
 .site-footer a:hover, .site-footer a:focus-visible { text-decoration: underline; }
 
 /* ---------- Setup ---------- */
-.setup { max-width: 640px; margin: 0 auto; text-align: center; padding: 1.5rem 0 2rem; }
+.setup { position: relative; max-width: 640px; margin: 0 auto; text-align: center; padding: 1.5rem 0 2rem; }
+.setup-corner { display: flex; justify-content: flex-end; margin-bottom: -0.5rem; }
 .setup h1 { font-size: clamp(2.4rem, 8vw, 3.4rem); margin: 0; letter-spacing: 0.03em; }
 .tagline { color: var(--ink-soft); margin: 0.3rem 0 1.8rem; }
 fieldset { border: none; margin: 0 0 1.4rem; padding: 0; min-width: 0; }

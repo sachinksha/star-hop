@@ -84,6 +84,36 @@ describe('game store: settings', () => {
   })
 })
 
+describe('game store: theme', () => {
+  it('defaults to the system theme, with no override on the page', () => {
+    expect(store().settings.theme).toBe('system')
+    expect(document.documentElement.dataset.theme).toBeUndefined()
+  })
+
+  it('applies and saves light and dark, and clears the override for system', () => {
+    store().updateSettings({ theme: 'dark' })
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!).theme).toBe('dark')
+    store().updateSettings({ theme: 'light' })
+    expect(document.documentElement.dataset.theme).toBe('light')
+    store().updateSettings({ theme: 'system' })
+    expect(document.documentElement.dataset.theme).toBeUndefined()
+  })
+
+  it('restores a saved theme on load and ignores an unknown one', async () => {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'dark', sound: false }))
+    vi.resetModules()
+    let fresh = (await import('./gameStore')).useGameStore.getState()
+    expect(fresh.settings).toMatchObject({ theme: 'dark', sound: false, autoRoll: true })
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'neon' }))
+    vi.resetModules()
+    fresh = (await import('./gameStore')).useGameStore.getState()
+    expect(fresh.settings.theme).toBe('system')
+    fresh.updateSettings({ theme: 'system' })
+  })
+})
+
 describe('game store: saved local game', () => {
   it('saves the game after every change and remembers the setup', () => {
     store().start(TWO, FIRST)

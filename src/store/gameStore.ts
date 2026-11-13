@@ -42,18 +42,39 @@ export interface Settings {
   comebackDice: boolean
   /** Sound effects on. */
   sound: boolean
+  /** Colour theme. 'system' follows the device's light or dark setting. */
+  theme: Theme
+}
+
+export type Theme = 'system' | 'light' | 'dark'
+export const THEMES: readonly Theme[] = ['system', 'light', 'dark']
+
+/** The settings that are simple on/off switches. */
+export type ToggleSetting = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings]
+
+/**
+ * Applies a theme to the page. 'system' removes the override so the CSS
+ * follows prefers-color-scheme. index.html runs the same logic inline before
+ * first paint, so a dark-theme user never sees a light flash.
+ */
+export function applyTheme(theme: Theme): void {
+  if (typeof document === 'undefined') return
+  if (theme === 'system') delete document.documentElement.dataset.theme
+  else document.documentElement.dataset.theme = theme
 }
 
 export const SETTINGS_KEY = 'star-hop:settings'
-export const DEFAULT_SETTINGS: Settings = { autoRoll: true, autoMove: true, comebackDice: true, sound: true }
+export const DEFAULT_SETTINGS: Settings = { autoRoll: true, autoMove: true, comebackDice: true, sound: true, theme: 'system' }
 
 function loadSettings(): Settings {
   const parsed = readJson(SETTINGS_KEY)
   const settings = { ...DEFAULT_SETTINGS }
   if (isObject(parsed)) {
-    for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
-      if (typeof parsed[key] === 'boolean') settings[key] = parsed[key]
+    for (const key of ['autoRoll', 'autoMove', 'comebackDice', 'sound'] as const) {
+      const value = parsed[key]
+      if (typeof value === 'boolean') settings[key] = value
     }
+    if (THEMES.includes(parsed.theme as Theme)) settings.theme = parsed.theme as Theme
   }
   return settings
 }
@@ -176,6 +197,7 @@ function persist(s: Pick<GameStoreState, 'configs' | 'initial' | 'actions' | 'ga
 function initialState() {
   const settings = loadSettings()
   setMuted(!settings.sound)
+  applyTheme(settings.theme)
   const saved = loadSavedGame()
   return {
     configs: saved?.configs ?? null,
@@ -267,6 +289,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
     const settings = { ...get().settings, ...patch }
     writeJson(SETTINGS_KEY, settings)
     setMuted(!settings.sound)
+    applyTheme(settings.theme)
     set({ settings })
   },
 

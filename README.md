@@ -22,6 +22,7 @@ Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human o
 - **Pick where it goes:** when a marble has several destinations (on a star, near the centre), each gets a numbered badge on the board, 1 being the one closest to home and the centre always last. Tap a badge or press its number. Hover or focus a badge to see the path; Esc goes back.
 - Undo/redo (← →), pause (P), log (L), new game (N) and settings (S) are on the toolbar and the keyboard.
 - Refreshing the page keeps your game: it comes back paused.
+- **Theme:** the theme button (on setup and in the toolbar) cycles System, Light and Dark. System follows your device and is the default; your choice is remembered.
 
 ## The board
 

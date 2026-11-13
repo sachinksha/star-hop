@@ -12,7 +12,7 @@ import { FinishBanner } from './FinishBanner'
 import { GameLog, KeyboardHelp } from './GameLog'
 import { Icon } from './Icons'
 import { PlayerPanel } from './PlayerPanel'
-import { SettingSwitch, ToolButton } from './Toolbar'
+import { SettingSwitch, ThemeSwitch, ToolButton } from './Toolbar'
 import { WinOverlay } from './WinOverlay'
 
 type PendingAction = 'settings' | 'new' | null
@@ -146,6 +146,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           <SettingSwitch setting="autoRoll" icon="dice" label="Auto roll" title="Roll the die automatically on your turn. You still choose every real move." />
           <SettingSwitch setting="autoMove" icon="forward" label="Auto move" title="Play your move automatically when the roll leaves no real choice." />
           <SettingSwitch setting="sound" icon="speaker" label="Sound" />
+          <ThemeSwitch />
           <ToolButton icon="gear" label="Settings" onClick={requestSettings} shortcut="S" shortcutLabel="S" />
           <ToolButton icon="restart" label="New game" onClick={requestNew} disabled={!configs} shortcut="N" shortcutLabel="N" />
         </div>

@@ -5,6 +5,7 @@ import { validateNames } from '../game/names'
 import { MAX_NAME_LENGTH, type Color, type PlayerConfig, type PlayerKind } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { COLOR_HEX, COLOR_NAME } from './colors'
+import { ThemeSwitch } from './Toolbar'
 
 const KIND_LABEL: Record<PlayerKind, string> = { human: 'Human', bot: 'Bot' }
 
@@ -71,6 +72,9 @@ export function SetupScreen({ onStart, initial }: SetupScreenProps) {
 
   return (
     <section className="setup" aria-labelledby="setup-title">
+      <div className="setup-corner">
+        <ThemeSwitch />
+      </div>
       <h1 id="setup-title">Star Hop</h1>
       <p className="tagline">A marble race for 2 to 6. Roll, hop the stars, bump your friends.</p>
 

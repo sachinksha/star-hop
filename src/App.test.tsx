@@ -94,6 +94,19 @@ describe('App', () => {
     expect(screen.getByTestId('announcer')).toHaveTextContent('Red has no legal move')
   })
 
+  it('switches theme from setup: system, light, dark, back to system', () => {
+    render(<App />)
+    const button = () => screen.getByRole('button', { name: /^Theme:/ })
+    expect(button()).toHaveAccessibleName('Theme: System. Switch to Light')
+    fireEvent.click(button())
+    expect(document.documentElement.dataset.theme).toBe('light')
+    fireEvent.click(button())
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(button()).toHaveAccessibleName('Theme: Dark. Switch to System')
+    fireEvent.click(button())
+    expect(document.documentElement.dataset.theme).toBeUndefined()
+  })
+
   it('links to the source code', () => {
     render(<App />)
     expect(screen.getByRole('link', { name: 'Source on GitHub' })).toHaveAttribute('href', 'https://github.com/sachinksha/aggravation-game')
