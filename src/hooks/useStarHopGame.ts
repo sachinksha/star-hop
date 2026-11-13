@@ -1,0 +1,436 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { playSound } from '../audio/sfx'
+import { isStar, sameSpot } from '../game/board'
+import { chooseBotMove } from '../game/bot'
+import { rollFor, secureRandom, type Rng } from '../game/engine'
+import { undoIndex } from '../game/history'
+import { autoMove as autoMoveFor } from '../game/rules'
+import type { Color, GameAction, GameEvent, GameState, Move, Player, Spot } from '../game/types'
+import { useGameStore } from '../store/gameStore'
+
+/** Timing constants, in milliseconds. Tests and tuning use the same numbers. */
+export const TIMING = {
+  /** Length of the dice tumble before the result is shown. */
+  ROLL_MS: 600,
+  /** Delay between each hole a marble walks through. */
+  STEP_MS: 140,
+  /** A star hop, or a jump into or out of the centre: a longer arc. */
+  HOP_MS: 280,
+  /** Pause after an action settles before the next one can start. */
+  SETTLE_MS: 250,
+  /** Extra pause after a roll with no legal move, so the "oops" registers. */
+  OOPS_MS: 700,
+  /** Bot thinking delays. */
+  BOT_ROLL_MS: 700,
+  BOT_MOVE_MS: 600,
+  /** Delay before a move with no real decision is played automatically. */
+  AUTO_MOVE_MS: 450,
+  /** Delay before a human's die rolls by itself when auto roll is on. */
+  AUTO_ROLL_MS: 650,
+  /** How long play holds while a player's finish is celebrated. */
+  CELEBRATE_MS: 2200,
+  /** How long a notice stays on screen. Play continues. */
+  NOTICE_MS: 5000,
+} as const
+
+export interface Celebration {
+  color: Color
+  name: string
+  rank: number
+}
+
+/** What happened when a marble was picked. */
+export type PickResult = 'moved' | 'choose' | 'none'
+
+/** Returns a copy of `players` with one marble moved to `spot`. */
+function withMarbleAt(players: Player[], color: Color, marbleId: number, spot: Spot): Player[] {
+  return players.map((p) =>
+    p.color !== color ? p : { ...p, marbles: p.marbles.map((m) => (m.id === marbleId ? { ...m, spot } : m)) },
+  )
+}
+
+/** True when stepping from `prev` to `next` is an arc (star hop, centre in or out) rather than a walk. */
+function isArc(prev: Spot, next: Spot): boolean {
+  if (prev.kind === 'center' || next.kind === 'center') return true
+  // Two stars are never next to each other on the loop, so star to star is always a hop.
+  return prev.kind === 'loop' && next.kind === 'loop' && isStar(prev.pos) && isStar(next.pos)
+}
+
+/** Plays the sounds for a settled action's events. */
+function playOutcomeSounds(events: GameEvent[]): void {
+  // A player finishing and the game ending often happen together: one fanfare.
+  const fanfare = events.some((e) => e.type === 'finish' || e.type === 'gameOver')
+  for (const e of events) {
+    if (e.type === 'bump') playSound('bump')
+    if (e.type === 'move' && e.move.reachesHome && !fanfare) playSound('home')
+    if (e.type === 'noMoves') playSound('oops')
+  }
+  if (fanfare) playSound('win')
+}
+
+export interface StarHopController {
+  game: GameState
+  /** Players as currently drawn. Lags `game` while a move is animating. */
+  shownPlayers: Player[]
+  /** True while the die is tumbling. */
+  rolling: boolean
+  /** True while a roll or move is animating or settling. */
+  busy: boolean
+  paused: boolean
+  /** The seat to play is controlled from this device. */
+  humanTurn: boolean
+  /** True for seats played from this device. */
+  isMine: (color: Color) => boolean
+
+  /** The marble picked by this device's player, waiting for a destination. */
+  selected: number | null
+  /** The selected marble's destinations, in display order (badge 1 first). */
+  destinations: Move[]
+  /** Legal moves for one of the current player's marbles, in display order. */
+  movesFor: (marbleId: number) => Move[]
+  /**
+   * Picks a marble. With one destination it moves at once ('moved'); with
+   * several it is selected and waits for a destination ('choose'); with none,
+   * nothing happens ('none').
+   */
+  pickMarble: (marbleId: number) => PickResult
+  /** Moves the selected marble to destination `index` (0-based, in display order). */
+  chooseDestination: (index: number) => void
+  /** Plays a move directly (a tap on a destination marker). */
+  playMove: (move: Move) => void
+  cancelSelection: () => void
+
+  /** A player who just finished, while their banner is up. */
+  celebration: Celebration | null
+  /** Every human has finished but bots are still playing: offer to end the game. */
+  offerEnd: boolean
+  endEarly: () => void
+  keepWatching: () => void
+  canUndo: boolean
+  canRedo: boolean
+  roll: () => void
+  undo: () => void
+  redo: () => void
+  togglePause: () => void
+}
+
+/**
+ * Connects the store and the rules to the UI. Owns the timing: die tumble,
+ * hole-by-hole and star-to-star animation, bot turns, auto rolls and automatic
+ * moves. All game state lives in the store; this hook only schedules actions.
+ *
+ * Every action follows one path: decide it, animate it, record it, settle.
+ * Online play (phase 7) adds announcing between deciding and animating.
+ *
+ * @param rng Random source for dice and bot choices. Injectable for tests.
+ */
+export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
+  const game = useGameStore((s) => s.game)
+  const paused = useGameStore((s) => s.paused)
+  const autoRoll = useGameStore((s) => s.settings.autoRoll)
+  const autoMove = useGameStore((s) => s.settings.autoMove)
+  const actions = useGameStore((s) => s.actions)
+  const redoStack = useGameStore((s) => s.redoStack)
+  if (!game) throw new Error('useStarHopGame requires an active game')
+
+  // Animation-only state: what the board shows while an action plays out.
+  const [shownPlayers, setShownPlayers] = useState<Player[]>(() => game.players)
+  const [rolling, setRolling] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [celebration, setCelebration] = useState<Celebration | null>(null)
+  const [endDeclined, setEndDeclined] = useState(false)
+  /** The picked marble, tied to the position it was picked in so it clears itself after any action. */
+  const [selection, setSelection] = useState<{ seq: number; marbleId: number } | null>(null)
+
+  // Refs let scheduled callbacks read the latest values without stale closures.
+  const busyRef = useRef(false)
+  const timers = useRef<number[]>([])
+
+  const later = useCallback((fn: () => void, ms: number) => {
+    timers.current.push(window.setTimeout(fn, ms))
+  }, [])
+
+  useEffect(() => {
+    const pending = timers.current
+    return () => pending.forEach((id) => window.clearTimeout(id))
+  }, [])
+
+  const setBusyBoth = useCallback((value: boolean) => {
+    busyRef.current = value
+    setBusy(value)
+  }, [])
+
+  /** Which seats this device plays: local humans. */
+  const isMine = useCallback(
+    (color: Color) => {
+      const p = game.players.find((x) => x.color === color)
+      return p !== undefined && p.kind === 'human' && !p.remote
+    },
+    [game.players],
+  )
+
+  /**
+   * Shows the settled state after an action, plays its sounds and releases the
+   * busy lock. A finish (that does not end the game) holds play for a banner.
+   */
+  const settle = useCallback(() => {
+    const next = useGameStore.getState().game!
+    setShownPlayers(next.players)
+    playOutcomeSounds(next.events)
+    const finish = next.events.find((e) => e.type === 'finish')
+    if (finish?.type === 'finish' && next.phase !== 'gameOver') {
+      const player = next.players.find((p) => p.color === finish.color)!
+      setCelebration({ color: finish.color, name: player.name, rank: finish.rank })
+      later(() => {
+        setCelebration(null)
+        setBusyBoth(false)
+      }, TIMING.CELEBRATE_MS)
+      return
+    }
+    const oops = next.events.some((e) => e.type === 'noMoves')
+    later(() => setBusyBoth(false), TIMING.SETTLE_MS + (oops ? TIMING.OOPS_MS : 0))
+  }, [later, setBusyBoth])
+
+  /**
+   * Plays an action on screen, then records it: a tumble for a roll, the path
+   * hole by hole (with longer arcs for star hops and the centre) for a move,
+   * and straight to the result otherwise. Returns false if it does not fit.
+   */
+  const animate = useCallback(
+    (action: GameAction): boolean => {
+      const { game: g, record } = useGameStore.getState()
+      if (!g) return false
+      setBusyBoth(true)
+
+      if (action.type === 'roll') {
+        setRolling(true)
+        playSound('roll')
+        later(() => {
+          setRolling(false)
+          record(action)
+          settle()
+        }, TIMING.ROLL_MS)
+        return true
+      }
+
+      if (action.type === 'move') {
+        const move = g.legalMoves.find((m) => m.marbleId === action.marbleId && sameSpot(m.to, action.to))
+        if (g.phase !== 'move' || !move) {
+          setBusyBoth(false)
+          return false
+        }
+        const color = g.players[g.currentIndex]!.color
+        let at = 0
+        let prev = move.from
+        for (const spot of move.path) {
+          const arc = isArc(prev, spot)
+          at += arc ? TIMING.HOP_MS : TIMING.STEP_MS
+          later(() => {
+            setShownPlayers((players) => withMarbleAt(players, color, move.marbleId, spot))
+            playSound(arc ? 'hop' : 'move')
+          }, at)
+          prev = spot
+        }
+        later(() => {
+          record(action)
+          settle()
+        }, at + TIMING.STEP_MS)
+        return true
+      }
+
+      record(action)
+      settle()
+      return true
+    },
+    [later, setBusyBoth, settle],
+  )
+
+  /** An action decided on this device. Phase 7: hosts announce it to guests here first. */
+  const submit = useCallback((action: GameAction) => animate(action), [animate])
+
+  /** Rolls for whoever's turn it is. */
+  const performRoll = useCallback(() => {
+    const { game: g, paused: isPaused, settings } = useGameStore.getState()
+    if (busyRef.current || isPaused || !g || g.phase !== 'roll') return
+    const seat = g.players[g.currentIndex]!
+    submit({ type: 'roll', value: rollFor(g, rng, settings.comebackDice), actor: seat.kind })
+  }, [rng, submit])
+
+  /** Plays a legal move for whoever's turn it is. */
+  const performMove = useCallback(
+    (move: Move) => {
+      const { game: g, paused: isPaused } = useGameStore.getState()
+      if (busyRef.current || isPaused || !g || g.phase !== 'move') return
+      setSelection(null)
+      submit({ type: 'move', marbleId: move.marbleId, to: move.to, actor: g.players[g.currentIndex]!.kind })
+    },
+    [submit],
+  )
+
+  /** The current player is this device's, and it is their decision to make. */
+  const myMovePhase = useCallback(() => {
+    const { game: g, paused: isPaused } = useGameStore.getState()
+    if (!g || g.phase !== 'move' || isPaused || busyRef.current) return null
+    return isMine(g.players[g.currentIndex]!.color) ? g : null
+  }, [isMine])
+
+  const movesFor = useCallback(
+    (marbleId: number) => (game.phase === 'move' ? game.legalMoves.filter((m) => m.marbleId === marbleId) : []),
+    [game],
+  )
+
+  const pickMarble = useCallback(
+    (marbleId: number): PickResult => {
+      const g = myMovePhase()
+      if (!g) return 'none'
+      const moves = g.legalMoves.filter((m) => m.marbleId === marbleId)
+      const only = moves.length === 1 ? moves[0] : undefined
+      if (only) {
+        performMove(only)
+        return 'moved'
+      }
+      if (moves.length === 0) return 'none'
+      setSelection({ seq: g.actionSeq, marbleId })
+      return 'choose'
+    },
+    [myMovePhase, performMove],
+  )
+
+  const selected = selection && selection.seq === game.actionSeq && game.phase === 'move' ? selection.marbleId : null
+  const destinations = useMemo(() => (selected === null ? [] : movesFor(selected)), [selected, movesFor])
+
+  const chooseDestination = useCallback(
+    (index: number) => {
+      if (!myMovePhase()) return
+      const move = destinations[index]
+      if (move) performMove(move)
+    },
+    [myMovePhase, destinations, performMove],
+  )
+
+  const playMove = useCallback(
+    (move: Move) => {
+      const g = myMovePhase()
+      if (g && g.legalMoves.includes(move)) performMove(move)
+    },
+    [myMovePhase, performMove],
+  )
+
+  const cancelSelection = useCallback(() => setSelection(null), [])
+
+  /** UI: roll for this device's seat. */
+  const roll = useCallback(() => {
+    const g = useGameStore.getState().game
+    if (!g || g.phase !== 'roll' || !isMine(g.players[g.currentIndex]!.color)) return
+    performRoll()
+  }, [isMine, performRoll])
+
+  // Every human has finished while bots play on: offer to end the game.
+  const humans = game.players.filter((p) => p.kind === 'human')
+  const humansDone = humans.length > 0 && humans.every((p) => p.finishRank !== null)
+  const offerEnd = humansDone && !endDeclined && !busy && game.phase !== 'gameOver'
+
+  /** Each automatic action is scheduled from here: bot turns, auto rolls, moves with no real decision. */
+  useEffect(() => {
+    if (busy || paused || offerEnd || game.phase === 'gameOver') return
+    const seat = game.players[game.currentIndex]!
+
+    if (game.phase === 'roll') {
+      if (seat.kind === 'human' && (seat.remote || !autoRoll)) return
+      const id = window.setTimeout(performRoll, seat.kind === 'bot' ? TIMING.BOT_ROLL_MS : TIMING.AUTO_ROLL_MS)
+      return () => window.clearTimeout(id)
+    }
+
+    // Move phase. When the roll leaves no real decision, play it without a
+    // click: always for bots, and for this device's humans when auto move is on.
+    const auto = seat.kind === 'bot' || (autoMove && isMine(seat.color)) ? autoMoveFor(seat.color, game.legalMoves) : null
+    if (auto) {
+      const id = window.setTimeout(() => performMove(auto), TIMING.AUTO_MOVE_MS)
+      return () => window.clearTimeout(id)
+    }
+
+    if (seat.kind === 'bot') {
+      const id = window.setTimeout(() => {
+        const choice = chooseBotMove(useGameStore.getState().game!, rng)
+        if (choice) performMove(choice)
+      }, TIMING.BOT_MOVE_MS)
+      return () => window.clearTimeout(id)
+    }
+  }, [game, busy, paused, offerEnd, autoRoll, autoMove, isMine, performRoll, performMove, rng])
+
+  const endEarly = useCallback(() => {
+    if (busyRef.current) return
+    submit({ type: 'end', actor: 'human' })
+  }, [submit])
+
+  const keepWatching = useCallback(() => setEndDeclined(true), [])
+
+  const resetView = useCallback(() => {
+    setShownPlayers(useGameStore.getState().game!.players)
+    setRolling(false)
+    setSelection(null)
+  }, [])
+
+  const undo = useCallback(() => {
+    if (busyRef.current) return
+    useGameStore.getState().undo()
+    resetView()
+  }, [resetView])
+
+  const redo = useCallback(() => {
+    if (busyRef.current) return
+    useGameStore.getState().redo()
+    resetView()
+  }, [resetView])
+
+  // Local games pause when the player looks away: the tab goes to the
+  // background or the window loses focus. Resuming is left to the player.
+  useEffect(() => {
+    const pauseIfPlaying = () => {
+      const { game: g, paused: isPaused, setPaused } = useGameStore.getState()
+      if (g && g.phase !== 'gameOver' && !isPaused) setPaused(true)
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') pauseIfPlaying()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', pauseIfPlaying)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', pauseIfPlaying)
+    }
+  }, [])
+
+  const togglePause = useCallback(() => {
+    const { paused: isPaused, setPaused } = useGameStore.getState()
+    setPaused(!isPaused)
+  }, [])
+
+  const seat = game.players[game.currentIndex]!
+  return {
+    game,
+    shownPlayers,
+    rolling,
+    busy,
+    paused,
+    humanTurn: isMine(seat.color) && game.phase !== 'gameOver',
+    isMine,
+    selected,
+    destinations,
+    movesFor,
+    pickMarble,
+    chooseDestination,
+    playMove,
+    cancelSelection,
+    celebration,
+    offerEnd,
+    endEarly,
+    keepWatching,
+    canUndo: !busy && !paused && undoIndex(actions) !== null,
+    canRedo: !busy && !paused && redoStack.length > 0,
+    roll,
+    undo,
+    redo,
+    togglePause,
+  }
+}
