@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { armOf } from '../game/board'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
+import { useGuestView, useHostView } from '../hooks/useOnline'
 import { IS_TOUCH, useShortcuts } from '../hooks/useShortcuts'
 import type { StarHopController } from '../hooks/useStarHopGame'
 import { useGameStore } from '../store/gameStore'
+import { useOnlineStore } from '../store/onlineStore'
 import { Board } from './Board'
 import { COLOR_HEX } from './colors'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -23,7 +25,13 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ hop }: { hop: StarHopController }) {
-  const { game, shownPlayers, rolling, busy, paused, humanTurn, isMine, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, lastMove, celebration, offerEnd, endEarly, keepWatching, canUndo, canRedo, roll, undo, redo, togglePause } = hop
+  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, isMine, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, lastMove, celebration, notice, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, undo, redo, togglePause } = hop
+  const leaveOnline = useOnlineStore((s) => s.leave)
+  const reconnect = useOnlineStore((s) => s.reconnect)
+  const hostView = useHostView()
+  const guestView = useGuestView()
+  const online = role !== 'local'
+  const isGuest = role === 'guest'
   const actions = useGameStore((s) => s.actions)
   const latestLog = useGameStore((s) => s.log.at(-1)?.text ?? '')
   const autoRoll = useGameStore((s) => s.settings.autoRoll)
@@ -52,12 +60,28 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const lastRoll = [...actions].reverse().find((a) => a.type === 'roll')
   const shownHint = hint && hint.seq === game.actionSeq ? hint.text : null
 
-  const doSettings = () => abort()
+  // Online, leaving ends the session (host) or leaves it (guest).
+  const doSettings = () => (online ? leaveOnline() : abort())
   const doNew = () => {
-    if (configs) start(configs)
+    if (isGuest) return
+    // Hosts restart from the session's current seats (a seat a bot took over stays a bot).
+    if (role === 'host') useOnlineStore.getState().startHostedGame()
+    else if (configs) start(configs)
   }
-  const requestSettings = () => (inProgress ? setPending('settings') : doSettings())
-  const requestNew = () => (inProgress ? setPending('new') : doNew())
+  const requestSettings = () => (inProgress || (online && !gameOver) ? setPending('settings') : doSettings())
+  const requestNew = () => {
+    if (isGuest) return
+    if (inProgress) setPending('new')
+    else doNew()
+  }
+
+  // Host: online players who dropped out of a game still in progress.
+  const leftSeats =
+    !gameOver && hostView
+      ? hostView.seats.filter(
+          (s) => s.remote && s.joined && !s.connected && game.players.some((p) => p.color === s.color && p.remote && p.finishRank === null),
+        )
+      : []
   const confirmPending = () => {
     if (pending === 'settings') doSettings()
     if (pending === 'new') doNew()
@@ -98,7 +122,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
       ArrowLeft: () => (canUndo ? void undo() : false),
       ArrowRight: () => (canRedo ? void redo() : false),
       p: () => {
-        if (!gameOver) togglePause()
+        if (!gameOver && canPause) togglePause()
       },
       n: requestNew,
       s: requestSettings,
@@ -113,6 +137,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const oops = lastEvents.find((e) => e.type === 'noMoves')
   let prompt: string
   if (gameOver) prompt = 'Game over'
+  else if (paused && isGuest) prompt = 'The host paused the game.'
   else if (paused) prompt = IS_TOUCH ? 'Paused. Tap Resume to keep playing.' : 'Paused. Press P or Resume to keep playing.'
   else if (oops?.type === 'noMoves' && (busy || !humanTurn || game.phase === 'roll')) {
     const who = game.players.find((p) => p.color === oops.color)!
@@ -140,17 +165,51 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           </span>
         </div>
         <div className="toolbar-actions">
-          <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="ArrowLeft" shortcutLabel="←" />
-          <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="ArrowRight" shortcutLabel="→" />
-          <ToolButton icon={paused ? 'play' : 'pause'} label={paused ? 'Resume' : 'Pause'} onClick={togglePause} disabled={gameOver} pressed={paused} shortcut="P" shortcutLabel="P" />
+          {!online && <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="ArrowLeft" shortcutLabel="←" />}
+          {!online && <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="ArrowRight" shortcutLabel="→" />}
+          {canPause && (
+            <ToolButton icon={paused ? 'play' : 'pause'} label={paused ? 'Resume' : 'Pause'} onClick={togglePause} disabled={gameOver} pressed={paused} shortcut="P" shortcutLabel="P" />
+          )}
           <SettingSwitch setting="autoRoll" icon="dice" label="Auto roll" title="Roll the die automatically on your turn. You still choose every real move." />
           <SettingSwitch setting="autoMove" icon="forward" label="Auto move" title="Play your move automatically when the roll leaves no real choice." />
           <SettingSwitch setting="sound" icon="speaker" label="Sound" />
           <ThemeSwitch />
-          <ToolButton icon="gear" label="Settings" onClick={requestSettings} shortcut="S" shortcutLabel="S" />
-          <ToolButton icon="restart" label="New game" onClick={requestNew} disabled={!configs} shortcut="N" shortcutLabel="N" />
+          <ToolButton
+            icon="gear"
+            label={role === 'host' ? 'End online game' : isGuest ? 'Leave game' : 'Settings'}
+            onClick={requestSettings}
+            shortcut="S"
+            shortcutLabel="S"
+          />
+          {!isGuest && <ToolButton icon="restart" label="New game" onClick={requestNew} disabled={!configs} shortcut="N" shortcutLabel="N" />}
         </div>
       </header>
+
+      {isGuest && guestView?.status === 'lost' && (
+        <div className="net-banner" role="alert">
+          <span>The connection to the host dropped.</span>
+          <button type="button" className="primary" onClick={reconnect}>
+            Reconnect
+          </button>
+          <button type="button" onClick={leaveOnline}>
+            Leave
+          </button>
+        </div>
+      )}
+      {notice && (
+        <div key={notice.id} className="notice" style={{ ['--arm' as string]: COLOR_HEX[notice.color] }} role="status">
+          <Icon name="robot" />
+          <span>{notice.text}</span>
+        </div>
+      )}
+      {leftSeats.map((s) => (
+        <div key={s.color} className="net-banner" role="alert">
+          <span>{s.name} lost connection. They can rejoin with their link, or a bot can take over.</span>
+          <button type="button" onClick={() => takeoverSeat(s.color)} disabled={busy}>
+            Let a bot play
+          </button>
+        </div>
+      ))}
 
       <div className="game-body">
         <ol className="panels" aria-label="Players in turn order">
@@ -175,10 +234,12 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           {celebration && <FinishBanner key={celebration.color} {...celebration} />}
           {paused && (
             <div className="pause-veil" role="status">
-              <p>Game paused</p>
-              <button type="button" className="primary" onClick={togglePause}>
-                <Icon name="play" /> <span>Resume</span>
-              </button>
+              <p>{isGuest ? 'The host paused the game' : 'Game paused'}</p>
+              {canPause && (
+                <button type="button" className="primary" onClick={togglePause}>
+                  <Icon name="play" /> <span>Resume</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -218,9 +279,25 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
 
       {pending && (
         <ConfirmDialog
-          title="Abandon the current game?"
-          message="This game is still in progress. Abandoning it discards it for good."
-          confirmLabel={pending === 'settings' ? 'Abandon and open settings' : 'Abandon and start new'}
+          title={role === 'host' && pending === 'settings' ? 'End the online game?' : isGuest ? 'Leave this game?' : 'Abandon the current game?'}
+          message={
+            role === 'host' && pending === 'settings'
+              ? 'This ends the game for everyone and closes the invite link.'
+              : isGuest
+                ? 'You will leave the game. The host can let a bot take your seat.'
+                : role === 'host'
+                  ? 'This game is still in progress. A new game starts for everyone with the same seats.'
+                  : 'This game is still in progress. Abandoning it discards it for good.'
+          }
+          confirmLabel={
+            role === 'host' && pending === 'settings'
+              ? 'End for everyone'
+              : isGuest
+                ? 'Leave'
+                : pending === 'settings'
+                  ? 'Abandon and open settings'
+                  : 'Abandon and start new'
+          }
           cancelLabel="Keep playing"
           onConfirm={confirmPending}
           onCancel={() => setPending(null)}
@@ -245,8 +322,10 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           winners={game.winners}
           time={formatClock(elapsed)}
           names={Object.fromEntries(game.players.map((p) => [p.color, p.name]))}
-          onNewGame={configs ? doNew : undefined}
+          onNewGame={isGuest || !configs ? undefined : doNew}
           onSetup={doSettings}
+          setupLabel={role === 'host' ? 'End online game' : isGuest ? 'Leave' : undefined}
+          note={isGuest ? 'Waiting for the host to start another game...' : undefined}
         />
       )}
     </section>

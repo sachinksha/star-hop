@@ -10,6 +10,9 @@
   --accent-ink: #ffffff;
   --danger: #b42318;
   --focus: #2f5fd0;
+  --warn-bg: #fff4d6;
+  --warn-line: #e3b341;
+  --warn-ink: #6b4a00;
   /* Board, light: warm cream board, dark track holes, colour-tinted arms. */
   --board: #ebe2cd;
   --board-edge: #b8a77f;
@@ -46,6 +49,9 @@
     --accent-ink: #0d1220;
     --danger: #f06a5d;
     --focus: #8fb0ff;
+    --warn-bg: #3a3017;
+    --warn-line: #8a6d1f;
+    --warn-ink: #f3d68a;
     --board: #1c2740;
     --board-edge: #0c111d;
     --arm-tint: 32%;
@@ -73,6 +79,9 @@
   --accent-ink: #0d1220;
   --danger: #f06a5d;
   --focus: #8fb0ff;
+  --warn-bg: #3a3017;
+  --warn-line: #8a6d1f;
+  --warn-ink: #f3d68a;
   --board: #1c2740;
   --board-edge: #0c111d;
   --arm-tint: 32%;
@@ -142,6 +151,32 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .setup-option input { margin-top: 0.25rem; }
 .setup-option-hint { display: block; color: var(--ink-soft); font-size: 0.88rem; }
 .start-button { font-size: 1.1rem; padding: 0.7rem 2.2rem; }
+
+/* ---------- Online: lobby, join, banners ---------- */
+.lobby { max-width: 560px; }
+.lobby h1 { font-size: clamp(2rem, 7vw, 2.4rem); }
+.invite { display: grid; gap: 0.5rem; margin-bottom: 1.5rem; }
+.invite-link { width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: inherit; font-size: 0.85rem; color: var(--ink-soft); }
+.invite-actions { display: flex; gap: 0.5rem; justify-content: center; }
+.invite-expiry { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+.invite-expired { color: var(--danger); font-weight: 600; }
+.link-button { border: none; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: inherit; }
+.lobby-heading { font-size: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; max-width: 380px; margin: 0 auto 0.5rem; }
+.lobby-seats { list-style: none; margin: 0 auto 1.25rem; padding: 0; display: grid; gap: 0.4rem; max-width: 380px; text-align: left; }
+.lobby-seat { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-left: 5px solid var(--arm); border-radius: 10px; background: var(--surface); }
+.lobby-seat-open { border-style: dashed; border-left-style: solid; background: transparent; }
+.lobby-seat-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-seat-status { color: var(--ink-soft); font-size: 0.9rem; }
+.lobby-actions { margin-top: 0.5rem; justify-content: center; }
+.lobby-note { margin: 1.25rem auto 0; max-width: 420px; }
+.join-body { display: grid; gap: 0.75rem; justify-items: center; margin-bottom: 1.5rem; }
+.join-form { display: grid; gap: 0.5rem; justify-items: center; width: 100%; max-width: 280px; }
+.join-form label { font-weight: 600; }
+.lobby-leave { margin-top: 0.5rem; }
+.net-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 0.75rem; margin: 0 auto 0.75rem; padding: 0.5rem 0.75rem; max-width: 760px; border: 1px solid var(--warn-line); border-radius: 10px; background: var(--warn-bg); color: var(--warn-ink); font-size: 0.92rem; }
+.notice { display: flex; align-items: center; gap: 0.5rem; margin: 0 auto 0.6rem; max-width: 40rem; padding: 0.5rem 0.8rem; background: var(--surface); border: 2px solid var(--arm); border-left-width: 6px; border-radius: 10px; font-weight: 600; animation: notice-in 0.3s ease-out both; }
+.notice svg { flex: none; color: var(--arm); }
+@keyframes notice-in { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- Toolbar ---------- */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.8rem; }

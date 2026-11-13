@@ -15,12 +15,15 @@ describe('SetupScreen', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)
     fireEvent.click(startButton())
-    expect(onStart).toHaveBeenCalledWith([
-      { color: 'red', kind: 'human' },
-      { color: 'orange', kind: 'bot' },
-      { color: 'green', kind: 'bot' },
-      { color: 'blue', kind: 'bot' },
-    ])
+    expect(onStart).toHaveBeenCalledWith(
+      [
+        { color: 'red', kind: 'human' },
+        { color: 'orange', kind: 'bot' },
+        { color: 'green', kind: 'bot' },
+        { color: 'blue', kind: 'bot' },
+      ],
+      false,
+    )
   })
 
   it('offers 2 to 6 players, with even default arms', () => {
@@ -82,10 +85,43 @@ describe('SetupScreen', () => {
     )
     expect(screen.getByRole('radio', { name: '2' })).toBeChecked()
     fireEvent.click(startButton())
-    expect(onStart).toHaveBeenCalledWith([
-      { color: 'yellow', kind: 'bot' },
-      { color: 'purple', kind: 'human', name: 'Zed' },
-    ])
+    expect(onStart).toHaveBeenCalledWith(
+      [
+        { color: 'yellow', kind: 'bot' },
+        { color: 'purple', kind: 'human', name: 'Zed' },
+      ],
+      false,
+    )
+  })
+
+  it('hosts online: seats can be online friends, and hosting needs one plus a local human', () => {
+    const onStart = vi.fn()
+    render(<SetupScreen onStart={onStart} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Online (invite link)' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Set at least one seat to Online friend.')
+    // Online, a click cycles human -> bot -> online friend: Orange (a bot) becomes a friend.
+    fireEvent.click(seat('Orange'))
+    expect(seat('Orange')).toHaveAccessibleName('Orange seat: Online friend. Click to change')
+    expect(screen.getByText('Joins by link')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
+    expect(onStart).toHaveBeenCalledWith(
+      [
+        { color: 'red', kind: 'human' },
+        { color: 'orange', kind: 'human', remote: true },
+        { color: 'green', kind: 'bot' },
+        { color: 'blue', kind: 'bot' },
+      ],
+      true,
+    )
+  })
+
+  it('treats a friend seat as a local human when switched back to this device', () => {
+    const onStart = vi.fn()
+    render(<SetupScreen onStart={onStart} initial={[{ color: 'red', kind: 'bot' }, { color: 'green', kind: 'human', remote: true }]} />)
+    expect(screen.getByRole('radio', { name: 'Online (invite link)' })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'On this device' }))
+    fireEvent.click(startButton())
+    expect(onStart).toHaveBeenCalledWith([{ color: 'red', kind: 'bot' }, { color: 'green', kind: 'human' }], false)
   })
 
   it('switches comeback dice in the saved settings', () => {

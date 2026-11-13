@@ -13,6 +13,8 @@ interface WinOverlayProps {
   onNewGame?: () => void
   onSetup: () => void
   setupLabel?: string
+  /** Extra line under the standings. */
+  note?: string
 }
 
 const PALETTE = Object.values(COLOR_HEX)
@@ -28,7 +30,7 @@ const PIECES = Array.from({ length: 90 }, (_, i) => ({
 }))
 
 /** End of game: full ranking, play again, or back to setup. */
-export function WinOverlay({ winners, names = {}, time, early, onNewGame, onSetup, setupLabel = 'Change setup' }: WinOverlayProps) {
+export function WinOverlay({ winners, names = {}, time, early, onNewGame, onSetup, setupLabel = 'Change setup', note }: WinOverlayProps) {
   const champion = winners[0]
   const label = (c: Color) => names[c] ?? COLOR_NAME[c]
   const title = champion === undefined ? 'Game over' : label(champion) === 'You' ? 'You win!' : `${label(champion)} wins!`
@@ -64,6 +66,11 @@ export function WinOverlay({ winners, names = {}, time, early, onNewGame, onSetu
             </li>
           ))}
         </ol>
+        {note && (
+          <p className="overlay-note" role="status">
+            {note}
+          </p>
+        )}
         <div className="overlay-actions">
           {onNewGame && (
             <button type="button" className="primary" onClick={onNewGame}>

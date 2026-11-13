@@ -122,13 +122,25 @@ describe('game store: saved local game', () => {
     expect(JSON.parse(window.localStorage.getItem(LAST_SETUP_KEY)!)).toEqual(TWO)
   })
 
-  it('clears the save on abort and on loading an online game', () => {
+  it('clears the save on abort', () => {
     store().start(TWO, FIRST)
     store().abort()
     expect(window.localStorage.getItem(SAVED_GAME_KEY)).toBeNull()
+  })
+
+  it('keeps a local save untouched while playing an online game as a guest', () => {
     store().start(TWO, FIRST)
+    store().record(ENTER[0]!)
+    const saved = window.localStorage.getItem(SAVED_GAME_KEY)
     const { initial } = store()
     store().load(initial!, [], false)
+    store().record(ENTER[0]!)
+    expect(window.localStorage.getItem(SAVED_GAME_KEY)).toBe(saved)
+  })
+
+  it('never saves a hosted game (it has remote seats)', () => {
+    store().start([{ color: 'red', kind: 'human' }, { color: 'blue', kind: 'human', remote: true }], FIRST)
+    store().record(ENTER[0]!)
     expect(window.localStorage.getItem(SAVED_GAME_KEY)).toBeNull()
   })
 

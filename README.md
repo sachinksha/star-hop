@@ -24,6 +24,22 @@ Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human o
 - Refreshing the page keeps your game: it comes back paused.
 - **Theme:** the theme button (on setup and in the toolbar) cycles System, Light and Dark. System follows your device and is the default; your choice is remembered.
 
+## Online play
+
+Play with friends on their own devices: no accounts, just a name.
+
+1. On setup choose **Online (invite link)**, set one or more seats to **Online friend** (click a seat to cycle Human → Bot → Online friend), and press **Create invite link**.
+2. Copy or share the link. It admits new players for **5 minutes** (a countdown shows), and **Reset link** makes a fresh one. Each friend who opens it types a name and takes the next open seat.
+3. Press **Start game** when everyone is in, or **Start now** to let bots take the empty seats.
+
+How it works:
+
+- **Browser to browser.** Moves travel over an encrypted WebRTC data channel. A free public PeerJS server only introduces the browsers, and a TURN relay (from `/api/turn`) helps when networks cannot connect directly, such as a phone on mobile data.
+- **The host's browser runs the game.** Guests send requests ("roll", "move marble 2 to this hole"); the host checks each against the rules and the turn, rolls the die, and sends the result to everyone. Guests cannot fake dice or move out of turn.
+- **Dropped connections.** A guest who refreshes or loses connection rejoins the same seat automatically (even after the link expired). The host sees "lost connection" with **Let a bot play**; when a bot takes over, the seat is renamed "Bot N" and everyone gets a notice.
+- **Host controls.** Only the host can pause, start a new game with the same people, or end the online game. Undo is off online, and online games never pause by themselves.
+- **Limits.** If the host closes their tab, the game ends. The host could in principle cheat, so play with people you know.
+
 ## The board
 
 Six arms around a ring of stars, with one hole in the middle:
@@ -58,6 +74,8 @@ Rules marked *house rule* are where the traditional rules are silent or vague. T
 | R16 | A player who finishes on a 6 does not roll again: with all 4 marbles home, every home hole is full and nothing can move (*house rule*) |
 
 Team play is not supported yet (planned).
+
+**Online:** undo is off, and games never pause by themselves (one player switching tabs would stop everyone).
 
 ## Bots
 

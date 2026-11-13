@@ -156,7 +156,7 @@ export interface GameStoreState {
 
   /** Starts a local game. `rng` picks bot styles and the first player (injectable for tests). */
   start: (configs: PlayerConfig[], rng?: Rng) => void
-  /** Replaces the game with one received from an online host. Not saved. */
+  /** Replaces the game with one received from an online host. Not saved; a local save is kept. */
   load: (initial: GameState, actions: GameAction[], paused: boolean) => void
   /** Adds a decision to the history and clears the redo stack. An illegal action is ignored. */
   record: (action: GameAction) => void
@@ -183,9 +183,16 @@ function derive(initial: GameState | null, actions: GameAction[]) {
   return { game: state, log }
 }
 
-/** Saves the local game, or clears the save when there is none or it is over. */
+/**
+ * Saves the local game, or clears the save when it is over. A game received
+ * from an online host (no local seats) is not this device's to save, so an
+ * earlier local save is left alone and comes back after leaving.
+ */
 function persist(s: Pick<GameStoreState, 'configs' | 'initial' | 'actions' | 'game'>): void {
-  if (!s.configs || !s.initial || !s.game || s.game.phase === 'gameOver') {
+  if (!s.configs) return
+  // Hosted games have remote seats: the host session owns them, and a refresh
+  // cannot bring the guests back, so they are never saved as local games.
+  if (s.configs.some((c) => c.remote) || !s.initial || !s.game || s.game.phase === 'gameOver') {
     writeJson(SAVED_GAME_KEY, null)
     return
   }
@@ -243,7 +250,6 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       paused,
       ...derive(initial, actions),
     }))
-    writeJson(SAVED_GAME_KEY, null)
   },
 
   record: (action) => {

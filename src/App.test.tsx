@@ -107,6 +107,22 @@ describe('App', () => {
     expect(document.documentElement.dataset.theme).toBeUndefined()
   })
 
+  it('opens the join screen from an invite link, even over a saved local game', () => {
+    store().start([{ color: 'red', kind: 'human' }, { color: 'blue', kind: 'bot' }])
+    window.history.replaceState(null, '', '/#join=host-1&k=abc&exp=' + (Date.now() + 60_000))
+    try {
+      render(<App />)
+      expect(screen.getByRole('heading', { name: 'Join a Star Hop game' })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Your name' })).toBeInTheDocument()
+      // Leaving without joining keeps the local game.
+      fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+      expect(store().game).not.toBeNull()
+      expect(screen.getByRole('region', { name: 'Star Hop game' })).toBeInTheDocument()
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
   it('links to the source code', () => {
     render(<App />)
     expect(screen.getByRole('link', { name: 'Source on GitHub' })).toHaveAttribute('href', 'https://github.com/sachinksha/aggravation-game')

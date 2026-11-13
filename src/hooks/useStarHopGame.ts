@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { playSound } from '../audio/sfx'
 import { isStar, sameSpot } from '../game/board'
-import { chooseBotMove } from '../game/bot'
+import { chooseBotMove, createBotProfile } from '../game/bot'
 import { rollFor, secureRandom, type Rng } from '../game/engine'
 import { undoIndex } from '../game/history'
 import { autoMove as autoMoveFor } from '../game/rules'
 import type { Color, GameAction, GameEvent, GameState, Move, Player, Spot } from '../game/types'
+import type { Intent } from '../net/protocol'
 import { useGameStore } from '../store/gameStore'
+import { useOnlineStore, type Role } from '../store/onlineStore'
+import { useGuestView } from './useOnline'
 
 /** Timing constants, in milliseconds. Tests and tuning use the same numbers. */
 export const TIMING = {
@@ -29,9 +32,16 @@ export const TIMING = {
   AUTO_ROLL_MS: 650,
   /** How long play holds while a player's finish is celebrated. */
   CELEBRATE_MS: 2200,
-  /** How long a notice stays on screen. Play continues. */
+  /** How long a notice (such as a bot taking a seat) stays on screen. Play continues. */
   NOTICE_MS: 5000,
 } as const
+
+export interface Notice {
+  /** Changes for each new notice, so the UI can re-announce it. */
+  id: number
+  color: Color
+  text: string
+}
 
 export interface Celebration {
   color: Color
@@ -68,6 +78,11 @@ function playOutcomeSounds(events: GameEvent[]): void {
   if (fanfare) playSound('win')
 }
 
+/** The legal move an intent asks for, or undefined. */
+function findMove(g: GameState, marbleId: number, to: Spot): Move | undefined {
+  return g.legalMoves.find((m) => m.marbleId === marbleId && sameSpot(m.to, to))
+}
+
 export interface StarHopController {
   game: GameState
   /** Players as currently drawn. Lags `game` while a move is animating. */
@@ -77,6 +92,8 @@ export interface StarHopController {
   /** True while a roll or move is animating or settling. */
   busy: boolean
   paused: boolean
+  /** local, host or guest. */
+  role: Role
   /** The seat to play is controlled from this device. */
   humanTurn: boolean
   /** True for seats played from this device. */
@@ -104,12 +121,18 @@ export interface StarHopController {
   lastMove: { color: Color; move: Move } | null
   /** A player who just finished, while their banner is up. */
   celebration: Celebration | null
+  /** A short message for everyone at the table, such as a bot taking a seat. */
+  notice: Notice | null
   /** Every human has finished but bots are still playing: offer to end the game. */
   offerEnd: boolean
   endEarly: () => void
   keepWatching: () => void
+  /** Host: hands an online seat (a player who left) to a bot. */
+  takeoverSeat: (color: Color) => void
   canUndo: boolean
   canRedo: boolean
+  /** Pausing is possible from this device (not for online guests). */
+  canPause: boolean
   roll: () => void
   undo: () => void
   redo: () => void
@@ -121,8 +144,9 @@ export interface StarHopController {
  * hole-by-hole and star-to-star animation, bot turns, auto rolls and automatic
  * moves. All game state lives in the store; this hook only schedules actions.
  *
- * Every action follows one path: decide it, animate it, record it, settle.
- * Online play (phase 7) adds announcing between deciding and animating.
+ * Every action follows one path: decide it, announce it (when hosting online),
+ * animate it, record it, settle. Online guests never decide: they send intents
+ * for their own seat and animate the actions the host announces.
  *
  * @param rng Random source for dice and bot choices. Injectable for tests.
  */
@@ -133,6 +157,9 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const autoMove = useGameStore((s) => s.settings.autoMove)
   const actions = useGameStore((s) => s.actions)
   const redoStack = useGameStore((s) => s.redoStack)
+  const role = useOnlineStore((s) => s.role)
+  const inbox = useOnlineStore((s) => s.inbox)
+  const guestColor = useGuestView()?.color ?? null
   if (!game) throw new Error('useStarHopGame requires an active game')
 
   // Animation-only state: what the board shows while an action plays out.
@@ -140,6 +167,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const [rolling, setRolling] = useState(false)
   const [busy, setBusy] = useState(false)
   const [celebration, setCelebration] = useState<Celebration | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const noticeId = useRef(0)
   const [lastMove, setLastMove] = useState<{ color: Color; move: Move } | null>(null)
   const [endDeclined, setEndDeclined] = useState(false)
   /** The picked marble, tied to the position it was picked in so it clears itself after any action. */
@@ -148,6 +177,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   // Refs let scheduled callbacks read the latest values without stale closures.
   const busyRef = useRef(false)
   const timers = useRef<number[]>([])
+  /** Guest: the action count at which an intent was last sent, to avoid repeats. */
+  const intentSentAt = useRef(-1)
 
   const later = useCallback((fn: () => void, ms: number) => {
     timers.current.push(window.setTimeout(fn, ms))
@@ -163,18 +194,21 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     setBusy(value)
   }, [])
 
-  /** Which seats this device plays: local humans. */
+  /** Which seats this device plays: its own seat as a guest, otherwise local humans. */
   const isMine = useCallback(
     (color: Color) => {
       const p = game.players.find((x) => x.color === color)
-      return p !== undefined && p.kind === 'human' && !p.remote
+      if (!p || p.kind !== 'human') return false
+      if (role === 'guest') return color === guestColor
+      return !p.remote
     },
-    [game.players],
+    [game.players, role, guestColor],
   )
 
   /**
    * Shows the settled state after an action, plays its sounds and releases the
-   * busy lock. A finish (that does not end the game) holds play for a banner.
+   * busy lock. A finish (that does not end the game) holds play for a banner;
+   * a takeover shows a notice without holding play.
    */
   const settle = useCallback(() => {
     const next = useGameStore.getState().game!
@@ -182,6 +216,13 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     playOutcomeSounds(next.events)
     const moved = next.events.find((e) => e.type === 'move')
     if (moved?.type === 'move') setLastMove({ color: moved.color, move: moved.move })
+    const handover = next.events.find((e) => e.type === 'takeover')
+    if (handover?.type === 'takeover') {
+      const id = ++noticeId.current
+      setNotice({ id, color: handover.color, text: `${handover.from} left the game. ${handover.to} is playing for them now.` })
+      // Only clear our own notice, not a newer one.
+      later(() => setNotice((n) => (n?.id === id ? null : n)), TIMING.NOTICE_MS)
+    }
     const finish = next.events.find((e) => e.type === 'finish')
     if (finish?.type === 'finish' && next.phase !== 'gameOver') {
       const player = next.players.find((p) => p.color === finish.color)!
@@ -219,8 +260,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       }
 
       if (action.type === 'move') {
-        const move = g.legalMoves.find((m) => m.marbleId === action.marbleId && sameSpot(m.to, action.to))
-        if (g.phase !== 'move' || !move) {
+        const move = g.phase === 'move' ? findMove(g, action.marbleId, action.to) : undefined
+        if (!move) {
           setBusyBoth(false)
           return false
         }
@@ -250,10 +291,16 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     [later, setBusyBoth, settle],
   )
 
-  /** An action decided on this device. Phase 7: hosts announce it to guests here first. */
-  const submit = useCallback((action: GameAction) => animate(action), [animate])
+  /** Host or local: an action decided on this device. Hosts tell the guests first. */
+  const submit = useCallback(
+    (action: GameAction) => {
+      useOnlineStore.getState().host?.announce(action)
+      animate(action)
+    },
+    [animate],
+  )
 
-  /** Rolls for whoever's turn it is. */
+  /** Rolls for whoever's turn it is (not used by guests). */
   const performRoll = useCallback(() => {
     const { game: g, paused: isPaused, settings } = useGameStore.getState()
     if (busyRef.current || isPaused || !g || g.phase !== 'roll') return
@@ -261,7 +308,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     submit({ type: 'roll', value: rollFor(g, rng, settings.comebackDice), actor: seat.kind })
   }, [rng, submit])
 
-  /** Plays a legal move for whoever's turn it is. */
+  /** Plays a legal move for whoever's turn it is (not used by guests). */
   const performMove = useCallback(
     (move: Move) => {
       const { game: g, paused: isPaused } = useGameStore.getState()
@@ -272,7 +319,26 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     [submit],
   )
 
-  /** The current player is this device's, and it is their decision to make. */
+  /** Guest: asks the host to act for this guest's seat, once per game position. */
+  const sendIntent = useCallback((intent: Intent) => {
+    const { guest } = useOnlineStore.getState()
+    const seq = useGameStore.getState().actions.length
+    if (!guest || busyRef.current || intentSentAt.current === seq) return
+    intentSentAt.current = seq
+    guest.sendIntent(seq, intent)
+  }, [])
+
+  /** Moves for this device's seat: locally, or as an intent when a guest. */
+  const playMine = useCallback(
+    (move: Move) => {
+      setSelection(null)
+      if (role === 'guest') sendIntent({ action: 'move', marbleId: move.marbleId, to: move.to })
+      else performMove(move)
+    },
+    [role, sendIntent, performMove],
+  )
+
+  /** The current position, when it is this device's player's decision to make. */
   const myMovePhase = useCallback(() => {
     const { game: g, paused: isPaused } = useGameStore.getState()
     if (!g || g.phase !== 'move' || isPaused || busyRef.current) return null
@@ -291,14 +357,14 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       const moves = g.legalMoves.filter((m) => m.marbleId === marbleId)
       const only = moves.length === 1 ? moves[0] : undefined
       if (only) {
-        performMove(only)
+        playMine(only)
         return 'moved'
       }
       if (moves.length === 0) return 'none'
       setSelection({ seq: g.actionSeq, marbleId })
       return 'choose'
     },
-    [myMovePhase, performMove],
+    [myMovePhase, playMine],
   )
 
   const selected = selection && selection.seq === game.actionSeq && game.phase === 'move' ? selection.marbleId : null
@@ -308,17 +374,17 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     (index: number) => {
       if (!myMovePhase()) return
       const move = destinations[index]
-      if (move) performMove(move)
+      if (move) playMine(move)
     },
-    [myMovePhase, destinations, performMove],
+    [myMovePhase, destinations, playMine],
   )
 
   const playMove = useCallback(
     (move: Move) => {
       const g = myMovePhase()
-      if (g && g.legalMoves.includes(move)) performMove(move)
+      if (g && g.legalMoves.includes(move)) playMine(move)
     },
-    [myMovePhase, performMove],
+    [myMovePhase, playMine],
   )
 
   const cancelSelection = useCallback(() => setSelection(null), [])
@@ -327,18 +393,64 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const roll = useCallback(() => {
     const g = useGameStore.getState().game
     if (!g || g.phase !== 'roll' || !isMine(g.players[g.currentIndex]!.color)) return
-    performRoll()
-  }, [isMine, performRoll])
+    if (role === 'guest') sendIntent({ action: 'roll' })
+    else performRoll()
+  }, [isMine, role, sendIntent, performRoll])
 
-  // Every human has finished while bots play on: offer to end the game.
+  // Every human has finished while bots play on: offer to end. Guests never decide this.
   const humans = game.players.filter((p) => p.kind === 'human')
   const humansDone = humans.length > 0 && humans.every((p) => p.finishRank !== null)
-  const offerEnd = humansDone && !endDeclined && !busy && game.phase !== 'gameOver'
+  const offerEnd = role !== 'guest' && humansDone && !endDeclined && !busy && game.phase !== 'gameOver'
 
-  /** Each automatic action is scheduled from here: bot turns, auto rolls, moves with no real decision. */
+  /** Guest: play the host's actions in order, one at a time. */
+  useEffect(() => {
+    if (role !== 'guest' || busy || inbox.length === 0) return
+    // Like every scheduled action, run it from a timer rather than during the effect.
+    const id = window.setTimeout(() => {
+      const item = useOnlineStore.getState().shiftInbox()
+      if (item?.kind !== 'action') return
+      if (!animate(item.action)) useOnlineStore.getState().guest?.requestResync()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [role, busy, inbox, animate])
+
+  /** Each automatic action is scheduled from here: bot turns, auto rolls, moves with no real decision, guest intents. */
   useEffect(() => {
     if (busy || paused || offerEnd || game.phase === 'gameOver') return
     const seat = game.players[game.currentIndex]!
+
+    if (role === 'guest') {
+      // Guests automate only their own seat, by sending intents; the host does everything else.
+      if (!isMine(seat.color) || inbox.length > 0) return
+      if (game.phase === 'roll' && autoRoll) {
+        const id = window.setTimeout(() => sendIntent({ action: 'roll' }), TIMING.AUTO_ROLL_MS)
+        return () => window.clearTimeout(id)
+      }
+      const auto = game.phase === 'move' && autoMove ? autoMoveFor(seat.color, game.legalMoves) : null
+      if (auto) {
+        const id = window.setTimeout(() => sendIntent({ action: 'move', marbleId: auto.marbleId, to: auto.to }), TIMING.AUTO_MOVE_MS)
+        return () => window.clearTimeout(id)
+      }
+      return
+    }
+
+    // Host: act on a guest's intent if it is for the current seat and position.
+    if (seat.remote && inbox.length > 0) {
+      const id = window.setTimeout(() => {
+        const { inbox: pending, clearInbox } = useOnlineStore.getState()
+        const intent = pending.find((i) => i.kind === 'intent' && i.color === seat.color && i.seq === actions.length)
+        clearInbox() // anything else is stale
+        if (intent?.kind !== 'intent') return
+        const g = useGameStore.getState().game!
+        if (intent.intent.action === 'roll' && g.phase === 'roll') performRoll()
+        if (intent.intent.action === 'move' && g.phase === 'move') {
+          // Only a legal move for that marble and hole is played; anything else is ignored.
+          const move = findMove(g, intent.intent.marbleId, intent.intent.to)
+          if (move) performMove(move)
+        }
+      }, 0)
+      return () => window.clearTimeout(id)
+    }
 
     if (game.phase === 'roll') {
       if (seat.kind === 'human' && (seat.remote || !autoRoll)) return
@@ -348,6 +460,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
 
     // Move phase. When the roll leaves no real decision, play it without a
     // click: always for bots, and for this device's humans when auto move is on.
+    // A remote player's own device decides that for them, so the host waits.
     const auto = seat.kind === 'bot' || (autoMove && isMine(seat.color)) ? autoMoveFor(seat.color, game.legalMoves) : null
     if (auto) {
       const id = window.setTimeout(() => performMove(auto), TIMING.AUTO_MOVE_MS)
@@ -361,14 +474,22 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       }, TIMING.BOT_MOVE_MS)
       return () => window.clearTimeout(id)
     }
-  }, [game, busy, paused, offerEnd, autoRoll, autoMove, isMine, performRoll, performMove, rng])
+  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, performMove, sendIntent, rng])
 
   const endEarly = useCallback(() => {
-    if (busyRef.current) return
+    if (busyRef.current || role === 'guest') return
     submit({ type: 'end', actor: 'human' })
-  }, [submit])
+  }, [role, submit])
 
   const keepWatching = useCallback(() => setEndDeclined(true), [])
+
+  const takeoverSeat = useCallback(
+    (color: Color) => {
+      if (busyRef.current || role !== 'host') return
+      submit({ type: 'takeover', color, bot: createBotProfile(rng), actor: 'human' })
+    },
+    [role, rng, submit],
+  )
 
   const resetView = useCallback(() => {
     setShownPlayers(useGameStore.getState().game!.players)
@@ -378,20 +499,22 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   }, [])
 
   const undo = useCallback(() => {
-    if (busyRef.current) return
+    if (busyRef.current || role !== 'local') return
     useGameStore.getState().undo()
     resetView()
-  }, [resetView])
+  }, [role, resetView])
 
   const redo = useCallback(() => {
-    if (busyRef.current) return
+    if (busyRef.current || role !== 'local') return
     useGameStore.getState().redo()
     resetView()
-  }, [resetView])
+  }, [role, resetView])
 
   // Local games pause when the player looks away: the tab goes to the
   // background or the window loses focus. Resuming is left to the player.
+  // Online games do not, since one player switching tabs would stop everyone.
   useEffect(() => {
+    if (role !== 'local') return
     const pauseIfPlaying = () => {
       const { game: g, paused: isPaused, setPaused } = useGameStore.getState()
       if (g && g.phase !== 'gameOver' && !isPaused) setPaused(true)
@@ -405,20 +528,23 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('blur', pauseIfPlaying)
     }
-  }, [])
+  }, [role])
 
   const togglePause = useCallback(() => {
+    if (role === 'guest') return
     const { paused: isPaused, setPaused } = useGameStore.getState()
     setPaused(!isPaused)
-  }, [])
+  }, [role])
 
   const seat = game.players[game.currentIndex]!
+  const local = role === 'local'
   return {
     game,
     shownPlayers,
     rolling,
     busy,
     paused,
+    role,
     humanTurn: isMine(seat.color) && game.phase !== 'gameOver',
     isMine,
     selected,
@@ -430,11 +556,14 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     cancelSelection,
     lastMove,
     celebration,
+    notice,
     offerEnd,
     endEarly,
     keepWatching,
-    canUndo: !busy && !paused && undoIndex(actions) !== null,
-    canRedo: !busy && !paused && redoStack.length > 0,
+    takeoverSeat,
+    canUndo: local && !busy && !paused && undoIndex(actions) !== null,
+    canRedo: local && !busy && !paused && redoStack.length > 0,
+    canPause: role !== 'guest',
     roll,
     undo,
     redo,

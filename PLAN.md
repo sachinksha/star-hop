@@ -204,7 +204,7 @@ The prompt line names the step ("Pick a marble: 1–4", "Pick where: 1–5, Esc 
 
 Each phase ends with passing tests, a clean lint, and a commit (when you ask for one).
 
-**Status (2026-11-13):** phases 0 (local part) to 6 are done, with 155 tests passing. Every local item on the feature checklist is in. Still open in phase 0: the Vercel project and the TURN check. Next is phase 7 (online).
+**Status (2026-11-13):** phases 0 to 7 are done in code, with 201 tests passing. Deployed at https://aggravation-game.vercel.app with TURN working. Still to do for phase 7: the manual test of a phone on mobile data against a laptop on Wi-Fi. Then phase 8 (docs).
 
 | Phase | Work | Done when |
 | --- | --- | --- |
