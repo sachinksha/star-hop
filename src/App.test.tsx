@@ -85,12 +85,18 @@ describe('App', () => {
     expect(screen.getByRole('status')).toHaveTextContent("Marble 2 can't move with a 3.")
   })
 
-  it('shows an oops when a roll has no legal move', () => {
+  it('shows an oops when a roll has no legal move, and reads the log line out', () => {
     startTwoPlayer([])
     rollNext(3)
     fireEvent.keyDown(window, { key: ' ' })
     advance(TIMINGish)
     expect(screen.getByText(/Oops! You rolled a 3 with no legal move\./)).toBeInTheDocument()
+    expect(screen.getByTestId('announcer')).toHaveTextContent('Red has no legal move')
+  })
+
+  it('links to the source code', () => {
+    render(<App />)
+    expect(screen.getByRole('link', { name: 'Source on GitHub' })).toHaveAttribute('href', 'https://github.com/sachinksha/aggravation-game')
   })
 
   it('asks before abandoning a game in progress', () => {

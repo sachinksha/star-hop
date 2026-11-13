@@ -25,7 +25,7 @@ The ✔ rows come straight from the printed rules and the gathertogethergames pa
 | R2 | Roll one die. A **1 or a 6** moves a marble from base onto your **start** hole. Not allowed if your own marble is on start. An opponent on your start is bumped | ✔ |
 | R3 | Marbles move **clockwise** by the full die count. Every hole counts, occupied or not | ✔ |
 | R4 | You may **jump over opponents** but never over your own marbles. You may not land on your own marble. This applies on the loop, on star hops and in home | ✔ |
-| R5 | Landing exactly on an opponent **bumps** it back to its base. Any hole can be bumped: loop, start, stars, centre. Base and home are safe | ✔ |
+| R5 | Landing exactly on an opponent **bumps** it back to its base. Any hole can be bumped: loop, start, stars, centre. Marbles can never be bumped in their base or home areas | ✔ (confirmed) |
 | R6 | Rolling a **6** earns another roll, **even if no move was possible**. There is no three-sixes limit. Bumping an opponent does **not** earn another roll | ✔ (confirmed) |
 | R7 | If any legal move exists you **must** make one. If none exists the turn passes, with an "oops" sound | ✔ |
 | R8 | **Star hop:** a marble that *starts its turn* on a star may move star to star, clockwise, each star counting as 1. It may stop on any star (linger there), or stop on any star and walk the rest of the count down that star's arm. Passing a star mid-walk does not allow a hop | ✔ |
@@ -204,7 +204,7 @@ The prompt line names the step ("Pick a marble: 1–4", "Pick where: 1–5, Esc 
 
 Each phase ends with passing tests, a clean lint, and a commit (when you ask for one).
 
-**Status (2026-11-13):** phases 0 (local part) to 5 are done, with 151 tests passing. The game is playable locally on desktop and phone. Still open in phase 0: the Vercel project and the TURN check. Next is phase 6 (polish), then phase 7 (online).
+**Status (2026-11-13):** phases 0 (local part) to 6 are done, with 155 tests passing. Every local item on the feature checklist is in. Still open in phase 0: the Vercel project and the TURN check. Next is phase 7 (online).
 
 | Phase | Work | Done when |
 | --- | --- | --- |

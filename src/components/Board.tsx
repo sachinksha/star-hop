@@ -33,6 +33,8 @@ interface BoardProps {
   destinations: Move[]
   /** Show 1-4 on the active seat's marbles as keyboard hints. */
   showNumbers: boolean
+  /** The most recent move, drawn as a faint trail. */
+  lastMove?: { color: Color; move: Move } | null
   onPickMarble: (marbleId: number) => void
   onChooseMove: (move: Move) => void
 }
@@ -118,7 +120,19 @@ function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Se
   )
 }
 
-export function Board({ players, bottom, activeColor, pickable, selected, destinations, showNumbers, onPickMarble, onChooseMove }: BoardProps) {
+/** A faint trail along the most recent move, from a ring on the hole it left. */
+function LastMoveTrail({ color, move, bottom }: { color: Color; move: Move; bottom: number }) {
+  const at = (spot: Move['from']) => marblePoint(color, move.marbleId, spot, bottom)
+  const from = at(move.from)
+  return (
+    <g style={{ ['--arm' as string]: COLOR_HEX[color] }} aria-hidden="true">
+      <polyline className="last-move" points={[move.from, ...move.path].map((s) => fmt(at(s))).join(' ')} />
+      <circle className="last-move-from" cx={from.x} cy={from.y} r={HOLE_R + 0.08} />
+    </g>
+  )
+}
+
+export function Board({ players, bottom, activeColor, pickable, selected, destinations, showNumbers, lastMove = null, onPickMarble, onChooseMove }: BoardProps) {
   /** Badge being hovered or focused: its path is previewed. */
   const [preview, setPreview] = useState<number | null>(null)
   const seated = new Set(players.map((p) => p.color))
@@ -135,6 +149,8 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
     <div className="board-wrap">
       <svg className="board" viewBox={VIEW} role="group" aria-label="Star Hop board">
         <BoardBase bottom={bottom} seated={seated} activeColor={activeColor} />
+
+        {lastMove && <LastMoveTrail {...lastMove} bottom={bottom} />}
 
         {previewMove && active && (
           <polyline

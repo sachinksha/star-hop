@@ -23,8 +23,9 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ hop }: { hop: StarHopController }) {
-  const { game, shownPlayers, rolling, busy, paused, humanTurn, isMine, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, celebration, offerEnd, endEarly, keepWatching, canUndo, canRedo, roll, undo, redo, togglePause } = hop
+  const { game, shownPlayers, rolling, busy, paused, humanTurn, isMine, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, lastMove, celebration, offerEnd, endEarly, keepWatching, canUndo, canRedo, roll, undo, redo, togglePause } = hop
   const actions = useGameStore((s) => s.actions)
+  const latestLog = useGameStore((s) => s.log.at(-1)?.text ?? '')
   const autoRoll = useGameStore((s) => s.settings.autoRoll)
   const start = useGameStore((s) => s.start)
   const abort = useGameStore((s) => s.abort)
@@ -166,6 +167,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
             selected={canPick ? selected : null}
             destinations={canPick ? destinations : []}
             showNumbers={humanTurn && !IS_TOUCH}
+            lastMove={lastMove}
             onPickMarble={(id) => (selected === id ? cancelSelection() : pick(id))}
             onChooseMove={playMove}
           />
@@ -207,6 +209,11 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           <KeyboardHelp />
         </aside>
       </div>
+
+      {/* Reads out each new log line (bumps, bot moves) for screen reader users. */}
+      <p className="sr-only" aria-live="polite" data-testid="announcer">
+        {latestLog}
+      </p>
 
       {pending && (
         <ConfirmDialog

@@ -43,7 +43,7 @@ Rules marked *house rule* are where the traditional rules are silent or vague. T
 | R2 | A **1 or a 6** moves a marble from base to your start hole. You can't do this while your own marble is on start. An opponent on your start is bumped |
 | R3 | Marbles move clockwise by the full count. Every hole counts, whether occupied or not |
 | R4 | You may jump over opponents, never over your own marbles, and you can't land on your own marble. This applies everywhere: on the loop, across stars and in home |
-| R5 | Landing exactly on an opponent **bumps** it back to its base. Any hole except base and home can be bumped, including start holes, stars and the centre |
+| R5 | Landing exactly on an opponent **bumps** it back to its base. Marbles can never be bumped in their base or home areas. Everywhere else can be bumped, including start holes (start is not part of base), stars and the centre |
 | R6 | A **6** earns another roll, even if it allowed no move. There is no limit on sixes in a row. Bumping does not earn another roll |
 | R7 | If you can move, you must. If you can't, the turn passes (with an "oops" sound) |
 | R8 | **Star hop:** a marble that *starts its turn* on a star may move star to star clockwise, each star counting as 1. It may stop on any star, or stop on one and walk the rest of the count down that star's arm. Walking *past* a star never allows a hop |

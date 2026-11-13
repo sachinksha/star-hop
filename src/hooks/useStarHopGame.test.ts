@@ -75,6 +75,19 @@ describe('auto roll and automatic moves', () => {
     ])
   })
 
+  it('remembers the last move for the board trail, and forgets it on undo', () => {
+    store().updateSettings({ autoMove: false })
+    seed(TWO, { red: [loop(30)] })
+    const { result } = renderHook(() => useStarHopGame(dice(3)))
+    advance(TIMING.AUTO_ROLL_MS + TIMING.ROLL_MS + TIMING.SETTLE_MS + 100)
+    expect(result.current.lastMove).toBeNull()
+    act(() => void result.current.pickMarble(0))
+    advance(4 * TIMING.STEP_MS + TIMING.SETTLE_MS + 100) // undo waits until the move settles
+    expect(result.current.lastMove).toMatchObject({ color: 'red', move: { marbleId: 0, to: loop(33) } })
+    act(() => result.current.undo())
+    expect(result.current.lastMove).toBeNull()
+  })
+
   it('waits for the human to roll when auto roll is off', () => {
     store().updateSettings({ autoRoll: false })
     seed(TWO, { red: [loop(30)] })

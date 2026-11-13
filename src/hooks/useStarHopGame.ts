@@ -100,6 +100,8 @@ export interface StarHopController {
   playMove: (move: Move) => void
   cancelSelection: () => void
 
+  /** The most recent move, drawn as a faint trail so others' moves are easy to follow. */
+  lastMove: { color: Color; move: Move } | null
   /** A player who just finished, while their banner is up. */
   celebration: Celebration | null
   /** Every human has finished but bots are still playing: offer to end the game. */
@@ -138,6 +140,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const [rolling, setRolling] = useState(false)
   const [busy, setBusy] = useState(false)
   const [celebration, setCelebration] = useState<Celebration | null>(null)
+  const [lastMove, setLastMove] = useState<{ color: Color; move: Move } | null>(null)
   const [endDeclined, setEndDeclined] = useState(false)
   /** The picked marble, tied to the position it was picked in so it clears itself after any action. */
   const [selection, setSelection] = useState<{ seq: number; marbleId: number } | null>(null)
@@ -177,6 +180,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     const next = useGameStore.getState().game!
     setShownPlayers(next.players)
     playOutcomeSounds(next.events)
+    const moved = next.events.find((e) => e.type === 'move')
+    if (moved?.type === 'move') setLastMove({ color: moved.color, move: moved.move })
     const finish = next.events.find((e) => e.type === 'finish')
     if (finish?.type === 'finish' && next.phase !== 'gameOver') {
       const player = next.players.find((p) => p.color === finish.color)!
@@ -369,6 +374,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     setShownPlayers(useGameStore.getState().game!.players)
     setRolling(false)
     setSelection(null)
+    setLastMove(null)
   }, [])
 
   const undo = useCallback(() => {
@@ -422,6 +428,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     chooseDestination,
     playMove,
     cancelSelection,
+    lastMove,
     celebration,
     offerEnd,
     endEarly,

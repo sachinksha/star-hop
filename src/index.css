@@ -89,6 +89,11 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
 
 .app { width: 100%; max-width: 1180px; margin: 0 auto; padding: 1rem; flex: 1; }
 
+/* ---------- Footer ---------- */
+.site-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; padding: 1rem 16px; font-size: 0.85rem; color: var(--ink-soft); border-top: 1px solid var(--line); }
+.site-footer a { color: var(--accent); text-decoration: none; }
+.site-footer a:hover, .site-footer a:focus-visible { text-decoration: underline; }
+
 /* ---------- Setup ---------- */
 .setup { max-width: 640px; margin: 0 auto; text-align: center; padding: 1.5rem 0 2rem; }
 .setup h1 { font-size: clamp(2.4rem, 8vw, 3.4rem); margin: 0; letter-spacing: 0.03em; }
@@ -218,6 +223,8 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .badge-number { font-size: 0.52px; font-weight: 800; fill: var(--badge-ink); pointer-events: none; }
 .badge:hover .badge-body, .badge:focus-visible .badge-body { fill: var(--star); }
 .badge:focus-visible { outline: none; }
+.last-move { fill: none; stroke: var(--arm); stroke-width: 0.1; stroke-linecap: round; stroke-linejoin: round; opacity: 0.55; pointer-events: none; }
+.last-move-from { fill: none; stroke: var(--arm); stroke-width: 0.08; opacity: 0.7; }
 .path-preview { fill: none; stroke: var(--star); stroke-width: 0.12; stroke-dasharray: 0.25 0.15; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 
 /* ---------- Side cards and log ---------- */

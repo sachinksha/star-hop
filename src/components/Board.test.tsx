@@ -62,6 +62,16 @@ describe('Board', () => {
     expect(document.querySelector('.path-preview')).toBeNull()
   })
 
+  it('draws a trail for the last move', () => {
+    const g = onStar()
+    const move = g.legalMoves[0]!
+    render(
+      <Board players={g.players} bottom={0} activeColor={null} pickable={[]} selected={null} destinations={[]} showNumbers={false} lastMove={{ color: 'red', move }} onPickMarble={vi.fn()} onChooseMove={vi.fn()} />,
+    )
+    const trail = document.querySelector('.last-move')!
+    expect(trail.getAttribute('points')!.split(' ')).toHaveLength(1 + move.path.length)
+  })
+
   it('describes where every marble is, for screen readers', () => {
     renderBoard(null)
     const list = within(screen.getByRole('region', { name: 'Where the marbles are' })).getAllByRole('listitem')

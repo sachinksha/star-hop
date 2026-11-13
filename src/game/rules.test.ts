@@ -52,6 +52,17 @@ describe('R3, R4: walking and jumping', () => {
 })
 
 describe('R5: bumping', () => {
+  it('never bumps a marble in its base or home', () => {
+    // Blue sits in its base (3 marbles) and its home. Red, walking or entering,
+    // can never land on either: no move of red's ever bumps one of them.
+    let g = place(game(), 'blue', [home(0), home(1), home(2)])
+    g = place(g, 'red', [loop(60), loop(62), CENTER])
+    for (let value = 1; value <= 6; value++) {
+      const bumps = rollAs(g, 'red', value).legalMoves.filter((m) => m.bumped)
+      expect(bumps).toEqual([])
+    }
+  })
+
   it('bumps on an exact landing, on loop holes and stars', () => {
     const g = place(place(game(), 'red', [loop(30)]), 'blue', [loop(33), loop(42)])
     expect(rollAs(g, 'red', 3).legalMoves[0]?.bumped).toEqual({ color: 'blue', marbleId: 0 })
