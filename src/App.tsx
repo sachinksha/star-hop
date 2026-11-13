@@ -9,7 +9,7 @@ import { useGameStore } from './store/gameStore'
 import { useOnlineStore } from './store/onlineStore'
 
 const PROFILE_URL = 'https://github.com/sachinksha'
-const REPO_URL = `${PROFILE_URL}/aggravation-game`
+const REPO_URL = `${PROFILE_URL}/star-hop`
 
 /**
  * Chooses the screen from the stores. A game in progress wins, keyed by

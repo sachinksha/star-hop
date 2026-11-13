@@ -125,7 +125,7 @@ describe('App', () => {
 
   it('links to the source code', () => {
     render(<App />)
-    expect(screen.getByRole('link', { name: 'Source on GitHub' })).toHaveAttribute('href', 'https://github.com/sachinksha/aggravation-game')
+    expect(screen.getByRole('link', { name: 'Source on GitHub' })).toHaveAttribute('href', 'https://github.com/sachinksha/star-hop')
   })
 
   it('asks before abandoning a game in progress', () => {

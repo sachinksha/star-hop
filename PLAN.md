@@ -1,8 +1,8 @@
 # Star Hop: build plan
 
-Star Hop is a browser marble race game for 2 to 6 players. It follows the traditional "marbles and a die" rules that Aggravation also uses: enter on a 1 or 6, race around the board, bump opponents back to base, and take shortcuts through the star spaces and the centre. It is built on the Ludo project's architecture ([../ludo-game/LEARNINGS.md](../ludo-game/LEARNINGS.md)).
+Star Hop is a browser marble race game for 2 to 6 players. It follows the traditional "marbles and a die" race rules of the Pachisi family: enter on a 1 or 6, race around the board, bump opponents back to base, and take shortcuts through the star spaces and the centre. It is built on the Ludo project's architecture ([../ludo-game/LEARNINGS.md](../ludo-game/LEARNINGS.md)).
 
-**Name and look.** "Aggravation" and its board art belong to Hasbro, so this game has its own name, its own visual design and its own vocabulary: an opponent is **bumped**, never "aggravated". Only the rules carry over, since game rules can't be owned.
+**Name and look.** The game has its own name, its own visual design and its own vocabulary (an opponent is **bumped**). Only the traditional rules carry over, since game rules can't be owned.
 
 **Decisions already made**
 
@@ -204,7 +204,7 @@ The prompt line names the step ("Pick a marble: 1–4", "Pick where: 1–5, Esc 
 
 Each phase ends with passing tests, a clean lint, and a commit (when you ask for one).
 
-**Status (2026-11-13):** phases 0 to 7 are done in code, with 201 tests passing. Deployed at https://aggravation-game.vercel.app with TURN working. Still to do for phase 7: the manual test of a phone on mobile data against a laptop on Wi-Fi. Then phase 8 (docs).
+**Status (2026-11-13):** phases 0 to 7 are done in code, with 201 tests passing. Deployed on Vercel (being renamed to star-hop) with TURN working. Still to do for phase 7: the manual test of a phone on mobile data against a laptop on Wi-Fi. Then phase 8 (docs).
 
 | Phase | Work | Done when |
 | --- | --- | --- |
