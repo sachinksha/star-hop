@@ -116,7 +116,7 @@ export interface Move {
   via: MoveVia
   /** Stars hopped before walking (0 unless via is 'hop'). */
   hops: number
-  /** The opponent marble on `to`, which goes back to its base. */
+  /** The marble on `to` (an opponent's, or in team play possibly a teammate's), which goes back to its base. */
   bumped: { color: Color; marbleId: number } | null
   /** The marble enters home with this move (it was not in home before). */
   reachesHome: boolean
@@ -156,7 +156,8 @@ export type GameEvent =
   | { type: 'roll'; value: number; color: Color; for?: Color }
   /** `color` owns the marble that moved; `by` is the roller when that was a teammate. */
   | { type: 'move'; move: Move; color: Color; by?: Color }
-  | { type: 'bump'; color: Color; victim: Color }
+  /** `friendly` marks a teammate's marble bumped in team play (allowed, but best avoided). */
+  | { type: 'bump'; color: Color; victim: Color; friendly?: boolean }
   /** The roll allowed no move. `rollAgain` is true after a 6 (R6). */
   | { type: 'noMoves'; color: Color; rollAgain: boolean }
   | { type: 'finish'; color: Color; rank: number }

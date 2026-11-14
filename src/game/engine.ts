@@ -7,7 +7,7 @@
 import { createBotProfile } from './bot'
 import { COLORS, ENTRY_ROLLS, armOf, progressOf, sameSpot } from './board'
 import { legalMovesFor, playersAfterMove } from './rules'
-import { helperTargets, isHelperTurn, moverOf, sideDone, takesTurns } from './teams'
+import { helperTargets, isHelperTurn, isTeammate, moverOf, sideDone, takesTurns } from './teams'
 import {
   MARBLES_PER_PLAYER,
   type BotProfile,
@@ -275,7 +275,11 @@ export function applyMove(state: GameState, marbleId: number, to: Spot): GameSta
   ]
 
   const players = playersAfterMove(state.players, mover.color, move)
-  if (move.bumped) events.push({ type: 'bump', color: mover.color, victim: move.bumped.color })
+  if (move.bumped) {
+    const victim = players.find((p) => p.color === move.bumped!.color)
+    const friendly = victim !== undefined && isTeammate(victim, mover)
+    events.push(friendly ? { type: 'bump', color: mover.color, victim: move.bumped.color, friendly } : { type: 'bump', color: mover.color, victim: move.bumped.color })
+  }
 
   // Finish: every marble of this seat is home.
   let finishedNow = false

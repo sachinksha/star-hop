@@ -6,8 +6,8 @@
  *  - Teams are fixed at setup: 4 players as 2 pairs, or 6 players as 2 teams
  *    of 3 or 3 pairs. Seats alternate round the board, so turns alternate
  *    between teams and partners sit opposite each other.
- *  - Teammates never bump each other: you may jump a teammate's marble, but
- *    not land on it.
+ *  - Landing on a teammate's marble bumps it, as with anyone else (the
+ *    traditional rule). It is legal, but players and bots try to avoid it.
  *  - A player whose marbles are all home keeps taking turns while a teammate
  *    is still playing. Before rolling they choose which unfinished teammate
  *    the roll is for, or pass.
@@ -38,7 +38,7 @@ export function isTeammate(a: Player, b: Player): boolean {
   return a.color !== b.color && a.team !== null && a.team === b.team
 }
 
-/** The same seat, or teammates. "Friendly" marbles: never bumped. */
+/** The same seat, or teammates: one side, working together. */
 export function sameSide(a: Player, b: Player): boolean {
   return a.color === b.color || isTeammate(a, b)
 }

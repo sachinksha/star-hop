@@ -9,7 +9,7 @@ Code: [teams.ts](../src/game/teams.ts), team parts of [engine.ts](../src/game/en
 | Rule | Decision | Reason |
 | --- | --- | --- |
 | R17 | 4 players as 2 pairs; 6 as 2 teams of 3 or 3 pairs. Seats alternate | Alternating seats means alternating turns, so no team gets two turns in a row, and partners sit opposite as in traditional partner games |
-| R18 | Teammates can't bump each other: jump, but never land | Friendly fire is never fun. Blocking a landing (rather than stacking) keeps "one marble per hole", an invariant the whole engine and UI rely on |
+| R18 | Landing on a teammate bumps it, as with an opponent | The traditional rule. The first version blocked such landings instead, which felt kind but changed the game: a teammate became a wall. Allowing it and teaching players and bots to *avoid* it keeps the strategy of the original |
 | R19 | A finished player keeps taking turns, choosing before the roll which teammate it is for | Otherwise a finished player just watches. Choosing *before* the roll keeps it a decision, not a lucky pick after seeing the number |
 | R20 | That player may pass | A forced move can wreck a teammate's safe position. Only finished players may pass, so the racing game is unchanged |
 | R21 | A team finishes when all members have | The natural team goal |
@@ -82,7 +82,24 @@ export function chooseHelperTarget(state: GameState): Color | null {
 }
 ```
 
-That is **expected value over the die**, reusing the existing move scorer with the roller's own persona. A hunter helps the teammate who could bump someone, and a racer helps the one nearest home. Bots never pass. Teammates are also removed from the danger calculation (`bumpRisk` skips anyone on the same side), since they can't bump you.
+That is **expected value over the die**, reusing the existing move scorer with the roller's own persona. A hunter helps the teammate who could bump someone, and a racer helps the one nearest home. Bots never pass. Teammates are also removed from the danger calculation (`bumpRisk` skips anyone on the same side), since a teammate won't choose to bump you.
+
+## Friendly fire: legal, but avoided
+
+The first version of R18 made teammates' marbles impossible to land on. The traditional rule is that landing on a teammate bumps it like anyone else, so the rule was changed to match. The engine change was one deleted line in `toMove`. The interesting work was teaching everyone to avoid it:
+
+- **The event says so.** A bump event carries `friendly: true` when the victim is a teammate, so the log reads "Red bumped teammate Green's marble" and the UI can react.
+- **People are warned, not stopped.** The destination badge gets an amber dashed ring and the move button says "Teammate!", distinct from the red "Bump!" for an opponent. The spoken label says "Bumps your teammate Bo". The rules still allow it, because sometimes it's the only legal move and moving is compulsory (R7).
+- **Bots value the team over the hit.** In `scoreMove`, a friendly bump is worth `-FRIENDLY_FIRE × value` (1.5 times the value of bumping an opponent, negated), so a bot only does it when every alternative is worse. Teammates' marbles are left out of the attack estimate, and a small "crowding" term (`teammateCrowding`) discourages parking where a teammate may need to land, the "don't get in each other's way" instinct.
+
+**Measured, not assumed.** Six seeded 2-against-2 bot games, with and without the penalty:
+
+| | Opponent bumps | Teammate bumps | Share friendly |
+| --- | --- | --- | --- |
+| Bots treat teammates like anyone | 204 | 58 | 22% |
+| With the friendly-fire penalty | 127 | 4 | 3% |
+
+The remaining 3% are positions where the friendly bump was the only legal move. The test suite keeps this honest with an assertion that friendly bumps stay under a tenth of opponent bumps.
 
 ## Deciding together online: suggestions, not chat
 

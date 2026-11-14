@@ -278,6 +278,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           {showPad && canPick && (
             <MovePad
               player={mover}
+              players={game.players}
               pickable={pickable}
               selected={selected}
               destinations={destinations}

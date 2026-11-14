@@ -40,7 +40,7 @@ Everything except the game actions is remembered between visits.
 
 With 4 players you can play as 2 teams of 2; with 6, as 2 teams of 3 or 3 teams of 2. Teammates sit alternately round the board, so turns alternate between teams.
 
-- Teammates never bump each other.
+- Landing on a teammate's marble bumps it, just like an opponent's (the traditional rule). It's legal but sets your team back: the board marks such moves in amber ("Teammate!"), and bots avoid them unless there's no other move.
 - When your marbles are all home you keep your turns: before rolling, choose which unfinished teammate the roll is for (or **pass**), then move their marble.
 - Online, teammates can **suggest** who you should roll for, or that you pass. Suggestions show on your buttons like votes; only your team sees them, and you decide.
 - The first team with everyone home wins.
@@ -95,7 +95,7 @@ Rules marked *house rule* are where the traditional rules are silent or vague. T
 | R15 | Play continues until everyone is ranked (*house rule*). When only bots are left you can end the game early, and unfinished players are ranked by progress |
 | R16 | A player who finishes on a 6 does not roll again: with all 4 marbles home, every home hole is full and nothing can move (*house rule*) |
 | R17 | **Teams** (optional): 4 players as 2 pairs, or 6 players as 2 teams of 3 or 3 pairs. Seats alternate between teams round the board |
-| R18 | Teammates can't bump each other: you may jump a teammate's marble but not land on it, including on your start hole |
+| R18 | Landing on a teammate's marble **bumps it**, as with an opponent (the traditional rule), including on your start hole. Teammates can be jumped like anyone else. It is legal but best avoided: the UI flags such moves and bots avoid them |
 | R19 | A player with all marbles home keeps taking turns while a teammate is still playing. Before rolling they choose which unfinished teammate the roll is for, and move that teammate's marble. A 6 rolls again, choosing again. Comeback dice follow the teammate whose marbles move |
 | R20 | On such a turn the player may **pass** instead of rolling (*house rule*). Players who are still racing can't pass |
 | R21 | A team finishes when all its members have. Play continues until at most one team is left, which is ranked last; ending early ranks teams by their last member's place |
@@ -112,7 +112,7 @@ Each bot gets a random persona every game (balanced, hunter, guardian or racer),
 
 Reach is worked out with the real move generator for every die value, so star hops, the centre exit and bumps on start holes all count.
 
-In team play bots treat teammates as friends (no danger from them). A finished bot rolls for the teammate whose best move is worth most on average over the six die faces. Bots never pass.
+In team play bots work as a team: a move that would bump a teammate scores 1.5 times worse than bumping an opponent would score well, teammates are never counted as targets or threats, and parking on a hole a teammate may need to land on costs a little. In seeded bot games that cut teammate bumps from 22% of all bumps to 3% (only when no other move was legal). A finished bot rolls for the teammate whose best move is worth most on average over the six die faces. Bots never pass.
 
 | Persona | Style |
 | --- | --- |

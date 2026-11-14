@@ -100,14 +100,18 @@ export function RulesContent() {
             Play as <b>2 teams of 2</b>, or with 6 players as 2 teams of 3 or 3 teams of 2. Teammates sit apart, so turns
             go back and forth between teams.
           </li>
-          <li>You can't bump a teammate. You can jump over their marbles, but not land on them.</li>
+          <li>
+            <b>Watch out for your teammates.</b> Landing on a teammate's marble bumps it back to base, just like an
+            opponent's. It's allowed, but it sets your team back, so stay out of each other's way and save your bumps for
+            the other team. The game marks a move that would bump a teammate.
+          </li>
           <li>
             Once your marbles are all home you keep taking turns for your team. <b>Before you roll</b>, choose which
             teammate the roll is for, then move their marble. You can also <b>pass</b> if a roll might do more harm
             than good. A {BONUS_ROLL} still rolls again, and you choose again.
           </li>
           <li>Online, your teammates can suggest who you should roll for. Their suggestions show on your buttons; you decide.</li>
-          <li>A team finishes when everyone on it is home. The first team to finish wins.</li>
+          <li>A team finishes when everyone on it is home. The first team to finish wins, so help the teammate who is furthest behind.</li>
         </ul>
       </section>
 

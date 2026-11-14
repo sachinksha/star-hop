@@ -24,6 +24,7 @@ import type { Color, Move, Player } from '../game/types'
 import { COLOR_HEX, COLOR_NAME } from './colors'
 import type { PadTarget } from './MovePad'
 import { snapTap } from './snap'
+import { isTeammate } from '../game/teams'
 
 interface BoardProps {
   /** Players as drawn (lags the game while a move animates). */
@@ -169,6 +170,11 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
   const shownPreview = preview ?? (padTarget?.kind === 'destination' ? padTarget.index : null)
   const previewMove = shownPreview !== null ? destinations[shownPreview] : undefined
   const padMarble = padTarget?.kind === 'marble' ? padTarget.id : null
+  /** Team play: the move would bump a teammate. Legal, but flagged so nobody does it by accident. */
+  const bumpsTeammate = (move: Move) => {
+    const victim = move.bumped && players.find((p) => p.color === move.bumped!.color)
+    return !!victim && !!active && isTeammate(victim, active)
+  }
 
   /** A tap that missed every piece: give it to the nearest usable one, if the choice is clear. */
   const onBoardClick = (e: MouseEvent<SVGSVGElement>) => {
@@ -255,7 +261,7 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
             return (
               <g
                 key={`dest-${i}`}
-                className={`badge${move.bumped ? ' badge-bump' : ''}${shownPreview === i ? ' badge-previewed' : ''}`}
+                className={`badge${move.bumped ? (bumpsTeammate(move) ? ' badge-friendly' : ' badge-bump') : ''}${shownPreview === i ? ' badge-previewed' : ''}`}
                 data-hit=""
                 style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
                 role="button"

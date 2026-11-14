@@ -470,6 +470,10 @@ button.danger-outline { border-color: var(--danger); color: var(--danger); font-
 .pad-back { flex: 0 0 52px; border-color: var(--line); font-size: 1.4rem; }
 .pad-bump { border-color: var(--danger); }
 .pad-tag { color: var(--danger); }
+/* Bumping a teammate: allowed, but warned in amber, distinct from the red "bump an opponent". */
+.pad-friendly { border-color: var(--warn-line); }
+.pad-friendly .pad-tag { color: var(--warn-ink); }
+.badge-friendly .badge-body { stroke: var(--warn-line); stroke-width: 0.12; stroke-dasharray: 0.18 0.1; }
 .pad-roll { flex-direction: row; gap: 0.5rem; font-size: 1.15rem; }
 .marble-previewed .marble-halo { stroke: var(--star); stroke-width: 0.16; animation: none; }
 .badge-previewed .badge-body { fill: var(--star); }

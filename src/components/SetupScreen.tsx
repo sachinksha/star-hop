@@ -149,8 +149,8 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
           ))}
           {teams && (
             <p className="setup-hint setup-hint-wide">
-              Teammates sit apart and take turns in between. They can't bump each other, and once you're home you roll for a
-              teammate. Click seats to choose who plays which.
+              Teammates sit apart and take turns in between. Landing on a teammate bumps them too, so steer clear. Once
+              you're home you roll for a teammate. Click seats to choose who plays which.
             </p>
           )}
         </fieldset>

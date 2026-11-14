@@ -1,5 +1,5 @@
 import { COLORS, SECTOR_LENGTH, isStar, stepsToHome } from './board'
-import { teamLabel } from './teams'
+import { isTeammate, teamLabel } from './teams'
 import type { Color, GameEvent, Move, Player } from './types'
 
 /** Colour names used in the game log. Kept here so the rules layer has no UI imports. */
@@ -49,7 +49,9 @@ export function describeEvent(event: GameEvent): string | null {
     case 'teamFinish':
       return `${teamLabel(event.team)} finished in place ${event.rank}`
     case 'bump':
-      return `${COLOR_NAME[event.color]} bumped a ${COLOR_NAME[event.victim]} marble back to base`
+      return event.friendly
+        ? `${COLOR_NAME[event.color]} bumped teammate ${COLOR_NAME[event.victim]}'s marble back to base`
+        : `${COLOR_NAME[event.color]} bumped a ${COLOR_NAME[event.victim]} marble back to base`
     case 'noMoves':
       return event.rollAgain
         ? `${COLOR_NAME[event.color]} has no legal move, but rolls again after a 6`
@@ -101,7 +103,9 @@ export function destinationLabel(move: Move, mover: Color, players: Player[]): s
   if (move.to.kind === 'loop') parts.push(`${stepsToHome(mover, move.to)} steps from home`)
   if (move.bumped) {
     const victim = players.find((p) => p.color === move.bumped!.color)
-    parts.push(`Bumps ${victim?.name ?? COLOR_NAME[move.bumped.color]}`)
+    const me = players.find((p) => p.color === mover)
+    const teammate = victim && me && isTeammate(victim, me)
+    parts.push(`${teammate ? 'Bumps your teammate' : 'Bumps'} ${victim?.name ?? COLOR_NAME[move.bumped.color]}`)
   }
   return parts.join('. ')
 }

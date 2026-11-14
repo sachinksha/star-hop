@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chooseBotMove, chooseHelperTarget, bumpRisk } from './bot'
+import { bumpChances, bumpRisk, chooseBotMove, chooseHelperTarget, scoreMove, teammateCrowding } from './bot'
 import { applyAction, applyMove, createGame, endGame, passRoll, rollFor, rollWithValue } from './engine'
 import { replay } from './history'
 import { assignTeams, helperTargets, isHelperTurn, moverOf, teamStandings, TEAM_OPTIONS } from './teams'
@@ -60,25 +60,33 @@ describe('team setup', () => {
 })
 
 describe('teammates on the board (R18)', () => {
-  it("can jump a teammate's marble but never land on it", () => {
-    // Red on 20; green (red's partner) on 22. A 2 would land on green: not allowed. A 3 jumps it.
+  it("bumps a teammate's marble on landing, like anyone's, and can jump it", () => {
+    // Red on 20; green (red's partner) on 22. A 2 lands on green and bumps it. A 3 jumps it.
     let g = place(teamGame(), 'red', [loop(20)])
     g = place(g, 'green', [loop(22)])
     const two = rollWithValue(g, 2)
-    expect(two.legalMoves).toHaveLength(0)
+    expect(two.legalMoves.map((m) => m.bumped)).toEqual([{ color: 'green', marbleId: 0 }])
+    const moved = applyMove(two, 0, loop(22))
+    expect(playerOf(moved, 'green').marbles[0]!.spot).toEqual({ kind: 'base' })
+    expect(moved.events).toContainEqual({ type: 'bump', color: 'red', victim: 'green', friendly: true })
     const three = rollWithValue(g, 3)
     expect(three.legalMoves.map((m) => m.to)).toEqual([loop(23)])
   })
 
-  it('still bumps opponents', () => {
+  it('bumps opponents without the friendly flag', () => {
     let g = place(teamGame(), 'red', [loop(20)])
     g = place(g, 'orange', [loop(22)])
-    expect(rollWithValue(g, 2).legalMoves[0]!.bumped).toEqual({ color: 'orange', marbleId: 0 })
+    const two = rollWithValue(g, 2)
+    expect(two.legalMoves[0]!.bumped).toEqual({ color: 'orange', marbleId: 0 })
+    expect(applyMove(two, 0, loop(22)).events).toContainEqual({ type: 'bump', color: 'red', victim: 'orange' })
   })
 
-  it("can't enter onto a start hole a teammate is sitting on", () => {
+  it('bumps a teammate sitting on your start hole when you enter', () => {
     const g = place(teamGame(), 'green', [loop(startIndex('red'))])
-    expect(rollWithValue(g, 6).legalMoves).toHaveLength(0)
+    const moves = rollWithValue(g, 6).legalMoves
+    expect(moves.length).toBeGreaterThan(0)
+    // Each base marble may enter, and every entry bumps green.
+    expect(moves.every((m) => m.bumped?.color === 'green')).toBe(true)
   })
 
   it("leaves teammates out of the bots' danger estimate", () => {
@@ -205,6 +213,45 @@ describe('team finish and game over (R21)', () => {
 })
 
 describe('team bots', () => {
+  it('avoids bumping a teammate when it has another move', () => {
+    // Red (bot) rolls 2: marble 0 on 20 would bump green on 22; marble 1 on 40 just walks.
+    let g = place(teamGame(['bot', 'bot', 'bot', 'bot']), 'red', [loop(20), loop(40)])
+    g = place(g, 'green', [loop(22)])
+    const rolled = rollWithValue(g, 2)
+    expect(rolled.legalMoves.some((m) => m.bumped?.color === 'green')).toBe(true)
+    for (let seed = 1; seed <= 20; seed++) expect(chooseBotMove(rolled, seeded(seed))!.bumped).toBeNull()
+  })
+
+  it("scores a teammate bump below a plain move and an opponent bump above it", () => {
+    let g = place(teamGame(), 'red', [loop(20), loop(40)])
+    g = place(g, 'green', [loop(22)])
+    g = place(g, 'orange', [loop(42)])
+    const rolled = rollWithValue(g, 2)
+    const friendly = rolled.legalMoves.find((m) => m.bumped?.color === 'green')!
+    const enemy = rolled.legalMoves.find((m) => m.bumped?.color === 'orange')!
+    expect(scoreMove(rolled, friendly)).toBeLessThan(0)
+    expect(scoreMove(rolled, enemy)).toBeGreaterThan(scoreMove(rolled, friendly) + 100)
+  })
+
+  it('bumps a teammate only when it is the one legal move (moving is compulsory)', () => {
+    let g = place(teamGame(['bot', 'bot', 'bot', 'bot']), 'red', [loop(20)])
+    g = place(g, 'green', [loop(22)])
+    const rolled = rollWithValue(g, 2)
+    expect(chooseBotMove(rolled, seeded(1))!.bumped).toEqual({ color: 'green', marbleId: 0 })
+  })
+
+  it("doesn't count teammates as targets, and dislikes parking in a teammate's path", () => {
+    // Green sits 3 ahead of red: as an opponent it would be a target; as a teammate it isn't.
+    let g = place(teamGame(), 'red', [loop(30)])
+    g = place(g, 'green', [loop(33)])
+    expect(bumpChances(g.players, 'red', 0)).toBe(0)
+    // Red on 33 with green 3 behind: green might have to land on red.
+    let h = place(teamGame(), 'red', [loop(33)])
+    h = place(h, 'green', [loop(30)])
+    expect(teammateCrowding(h.players, 'red', loop(33))).toBeGreaterThan(0)
+    expect(teammateCrowding(h.players, 'red', loop(60))).toBe(0)
+  })
+
   it('rolls for the teammate who gains most', () => {
     // Red (finished) can roll for green (stuck in base) or... only green in 4-player pairs.
     // With teams of 3, red chooses between green-like partners: use 6 players.
@@ -220,13 +267,14 @@ describe('team bots', () => {
   })
 
   it('finishes bot-only team games, and replays them exactly', () => {
-    for (const seed of [1, 2, 3]) {
+    let sawHelper = false
+    const bumps = { friendly: 0, enemy: 0 }
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
       const rng = seeded(seed)
       const teams = assignTeams(4, 2)
       let g = createGame(COLORS4.map((color, i) => ({ color, kind: 'bot' as const, team: teams[i]! })), rng)
       const initial = g
       const actions: GameAction[] = []
-      let sawHelper = false
       for (let i = 0; i < 20000 && g.phase !== 'gameOver'; i++) {
         let action: GameAction
         if (g.phase === 'roll') {
@@ -239,13 +287,18 @@ describe('team bots', () => {
         }
         const next = applyAction(g, action)
         expect(next).not.toBe(g)
+        for (const e of next.events) if (e.type === 'bump') bumps[e.friendly ? 'friendly' : 'enemy']++
         actions.push(action)
         g = next
       }
       expect(g.phase).toBe('gameOver')
-      expect(sawHelper).toBe(true)
       expect(teamStandings(g)).toHaveLength(2)
       expect(replay(initial, actions).state).toEqual(g)
     }
+    // A game can end before a finished player's turn comes round, but not all of them.
+    expect(sawHelper).toBe(true)
+    // Friendly fire is legal but rare: only when a bot has no better move.
+    console.info(`team bot games: ${bumps.enemy} opponent bumps, ${bumps.friendly} teammate bumps`)
+    expect(bumps.friendly).toBeLessThan(bumps.enemy * 0.1)
   })
 })

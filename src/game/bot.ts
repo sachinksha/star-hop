@@ -12,7 +12,7 @@
  */
 import { progressOf, spotKey, stepsToHome, isStar } from './board'
 import { legalMovesFor, movesForMarble, playersAfterMove } from './rules'
-import { helperTargets, moverOf, sameSide } from './teams'
+import { helperTargets, isTeammate, moverOf, sameSide } from './teams'
 import type { BotProfile, BotWeights, Color, GameState, Move, Persona, Player, Spot } from './types'
 
 /** Random source returning a number in [0, 1). */
@@ -106,18 +106,38 @@ export function bumpRisk(players: Player[], color: Color, spot: Spot): number {
 }
 
 /**
+ * Team play: chance that a teammate of `color` could land on `spot` next turn.
+ * Teammates bump each other too (R18), so a marble parked where a teammate
+ * may need to land is in their way: they might be forced to bump it, or give
+ * up a good move to avoid it.
+ */
+export function teammateCrowding(players: Player[], color: Color, spot: Spot): number {
+  if (spot.kind === 'base' || spot.kind === 'home') return 0
+  const me = players.find((p) => p.color === color)
+  if (!me || me.team === null) return 0
+  const key = spotKey(color, spot)
+  let clear = 1
+  for (const p of players) {
+    if (p.finishRank !== null || !isTeammate(p, me)) continue
+    clear *= 1 - (reachOf(players, p).get(key) ?? 0)
+  }
+  return 1 - clear
+}
+
+/**
  * Expected number of opponent marbles that the marble `marbleId` of `color`
  * could bump next turn: for each opponent marble, the chance of a die value
- * that lets it land there.
+ * that lets it land there. Teammates' marbles are not targets.
  */
 export function bumpChances(players: Player[], color: Color, marbleId: number): number {
   const player = players.find((p) => p.color === color)
   const marble = player?.marbles.find((m) => m.id === marbleId)
   if (!player || !marble) return 0
+  const friends = new Set(players.filter((p) => sameSide(p, player)).map((p) => p.color))
   const hits = new Map<string, number>()
   for (const d of DIE_FACES) {
     for (const move of movesForMarble(players, player, marble, d)) {
-      if (!move.bumped) continue
+      if (!move.bumped || friends.has(move.bumped.color)) continue
       const key = `${move.bumped.color}:${move.bumped.marbleId}`
       hits.set(key, (hits.get(key) ?? 0) + 1 / 6)
     }
@@ -126,6 +146,15 @@ export function bumpChances(players: Player[], color: Color, marbleId: number): 
   for (const chance of hits.values()) total += chance
   return total
 }
+
+/**
+ * Bumping a teammate costs the team more than bumping an opponent gains: the
+ * same value, times this. So a bot bumps a teammate only when every other
+ * move is worse (or it is the only legal move).
+ */
+export const FRIENDLY_FIRE = 1.5
+/** How much a teammate's possible landing counts against a hole, relative to an opponent's threat. */
+const CROWDING = 0.35
 
 /** What losing a marble on this hole would cost: further along hurts more. */
 function stake(color: Color, spot: Spot): number {
@@ -156,7 +185,9 @@ export function scoreMove(state: GameState, move: Move, rng: Rng = () => 0): num
   if (move.bumped) {
     const victim = state.players.find((p) => p.color === move.bumped!.color)
     const marble = victim?.marbles.find((m) => m.id === move.bumped!.marbleId)
-    score += w.bump + (victim && marble ? w.bumpProgress * progressOf(victim.color, marble.spot) : 0)
+    const value = w.bump + (victim && marble ? w.bumpProgress * progressOf(victim.color, marble.spot) : 0)
+    // Friendly fire (team play): the rules allow it, but it sets the team back.
+    score += victim && isTeammate(victim, player) ? -FRIENDLY_FIRE * value : value
   }
 
   score += w.progress * (stepsToHome(color, move.from) - stepsToHome(color, move.to))
@@ -171,6 +202,8 @@ export function scoreMove(state: GameState, move: Move, rng: Rng = () => 0): num
   // Exposure and pressure, judged on the board after the move.
   const after = playersAfterMove(state.players, color, move)
   score -= w.danger * bumpRisk(after, color, move.to) * stake(color, move.to)
+  // Team play: stay out of teammates' way.
+  score -= CROWDING * w.danger * teammateCrowding(after, color, move.to) * stake(color, move.to)
   if (move.to.kind !== 'home') score += w.attack * Math.min(2, bumpChances(after, color, move.marbleId))
 
   return score + rng() * w.noise

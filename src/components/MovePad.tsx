@@ -1,4 +1,5 @@
 import { shortDestination, shortSpot } from '../game/describe'
+import { isTeammate } from '../game/teams'
 import { MARBLES_PER_PLAYER, type Color, type Move, type Player } from '../game/types'
 import { COLOR_HEX } from './colors'
 
@@ -8,6 +9,8 @@ export type PadTarget = { kind: 'marble'; id: number } | { kind: 'destination'; 
 interface MovePadProps {
   /** The player whose marbles move. */
   player: Player
+  /** Everyone, to tell a teammate's marble from an opponent's in a bump. */
+  players: Player[]
   /** Marbles that can move with this roll. */
   pickable: number[]
   selected: number | null
@@ -29,7 +32,7 @@ interface MovePadProps {
  * on release, so sliding off the button cancels. That is the press-preview-
  * release pattern of a phone keyboard's key pop-up.
  */
-export function MovePad({ player, pickable, selected, destinations, movesFor, onPickMarble, onChooseMove, onBack, onPreview }: MovePadProps) {
+export function MovePad({ player, players, pickable, selected, destinations, movesFor, onPickMarble, onChooseMove, onBack, onPreview }: MovePadProps) {
   const color: Color = player.color
   // Preview while pressed or focused; clear when the finger lifts, slides off, or focus leaves.
   const previewProps = (target: PadTarget) => ({
@@ -48,22 +51,26 @@ export function MovePad({ player, pickable, selected, destinations, movesFor, on
           <span aria-hidden="true">‹</span>
           <span className="pad-sub">Back</span>
         </button>
-        {destinations.map((move, i) => (
-          <button
-            key={i}
-            type="button"
-            className={`pad-button pad-destination${move.bumped ? ' pad-bump' : ''}`}
-            data-testid={`pad-destination-${i + 1}`}
-            onClick={() => onChooseMove(move)}
-            {...previewProps({ kind: 'destination', index: i })}
-          >
-            <span className="pad-number">{i + 1}</span>
-            <span className="pad-sub">
-              {shortDestination(move)}
-              {move.bumped && <b className="pad-tag"> · Bump!</b>}
-            </span>
-          </button>
-        ))}
+        {destinations.map((move, i) => {
+          const victim = move.bumped && players.find((p) => p.color === move.bumped!.color)
+          const friendly = !!victim && isTeammate(victim, player)
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`pad-button pad-destination${move.bumped ? (friendly ? ' pad-friendly' : ' pad-bump') : ''}`}
+              data-testid={`pad-destination-${i + 1}`}
+              onClick={() => onChooseMove(move)}
+              {...previewProps({ kind: 'destination', index: i })}
+            >
+              <span className="pad-number">{i + 1}</span>
+              <span className="pad-sub">
+                {shortDestination(move)}
+                {move.bumped && <b className="pad-tag">{friendly ? ' · Teammate!' : ' · Bump!'}</b>}
+              </span>
+            </button>
+          )
+        })}
       </div>
     )
   }

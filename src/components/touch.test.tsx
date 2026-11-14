@@ -42,7 +42,7 @@ describe('MovePad', () => {
   it('numbers the marbles like the board, and only enables those that can move', () => {
     const g = position()
     const onPick = vi.fn()
-    render(<MovePad player={g.players[0]!} pickable={pickable(g)} selected={null} destinations={[]} movesFor={movesFor(g)} onPickMarble={onPick} onChooseMove={vi.fn()} onBack={vi.fn()} onPreview={vi.fn()} />)
+    render(<MovePad player={g.players[0]!} players={g.players} pickable={pickable(g)} selected={null} destinations={[]} movesFor={movesFor(g)} onPickMarble={onPick} onChooseMove={vi.fn()} onBack={vi.fn()} onPreview={vi.fn()} />)
     const group = screen.getByRole('group', { name: 'Pick a marble' })
     expect(within(group).getAllByRole('button')).toHaveLength(4)
     expect(screen.getByTestId('pad-marble-1')).toBeDisabled() // 9 -> 12 jumps over its own marble on 10
@@ -58,7 +58,7 @@ describe('MovePad', () => {
     const onChoose = vi.fn()
     const onBack = vi.fn()
     const dest = movesFor(g)(2)
-    render(<MovePad player={g.players[0]!} pickable={pickable(g)} selected={2} destinations={dest} movesFor={movesFor(g)} onPickMarble={vi.fn()} onChooseMove={onChoose} onBack={onBack} onPreview={onPreview} />)
+    render(<MovePad player={g.players[0]!} players={g.players} pickable={pickable(g)} selected={2} destinations={dest} movesFor={movesFor(g)} onPickMarble={vi.fn()} onChooseMove={onChoose} onBack={onBack} onPreview={onPreview} />)
     const first = screen.getByTestId('pad-destination-1')
     fireEvent.pointerDown(first)
     expect(onPreview).toHaveBeenLastCalledWith({ kind: 'destination', index: 0 })
