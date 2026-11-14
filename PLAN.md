@@ -10,7 +10,7 @@ Star Hop is a browser marble race game for 2 to 6 players. It follows the tradit
 | --- | --- |
 | Name | Star Hop |
 | Board | Always the 6-arm board. With fewer players, unused arms stay empty and players pick which arms to sit at |
-| Team play | Not in v1. `team` is in the types now, so teams can be added later without reworking the engine |
+| Team play | Added after v1 (rules R17-R21 in the README). The reserved `team` field meant no engine rework: turns, blocking and game over gained team checks, and one new action (`pass`) plus a `for` field on rolls |
 | Comeback dice | Kept, adapted to the 1-or-6 entry roll (see rule R13) |
 
 ---
@@ -37,7 +37,7 @@ The ✔ rows come straight from the printed rules and the gathertogethergames pa
 | R14 | The **first player is chosen at random** when the game is created (recorded in the initial state), instead of a roll-off. Play then passes clockwise by arm | ⚑ |
 | R15 | Play continues after the first finisher to rank every player. The game ends when one player is left, or early when only bots are still playing; unfinished players are ranked by progress | ⚑ (Ludo convention) |
 | R16 | When a player finishes on a 6, they do not roll again: all 4 home holes are full, so nothing can move | ✔ (confirmed) |
-| — | Team play: 4 players in 2 teams, or 6 players in teams | Deferred (see top) |
+| R17-R21 | Team play: 4 players in 2 teams, or 6 players in teams. Finished players roll for a teammate or pass; see the README | ✔ (added) |
 
 ---
 
@@ -98,7 +98,7 @@ export interface Marble { id: number; spot: Spot }
 export interface Player {
   color: Color; kind: PlayerKind; name: string; remote: boolean
   bot: BotProfile | null
-  team: number | null                    // unused in v1
+  team: number | null                    // team play (R17-R21)
   marbles: Marble[]
   finishRank: number | null
   lastRoll: number | null

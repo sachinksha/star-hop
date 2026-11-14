@@ -1,3 +1,4 @@
+import { teamLabel } from '../game/teams'
 import type { SeatView } from '../net/protocol'
 import { COLOR_HEX, COLOR_NAME } from './colors'
 
@@ -23,6 +24,7 @@ export function SeatList({ seats, myColor }: { seats: SeatView[]; myColor?: stri
           >
             <span className="panel-dot" aria-hidden="true" />
             <span className="lobby-seat-name">{seat.remote && !seat.joined ? COLOR_NAME[seat.color] : seat.name}</span>
+            {seat.team !== undefined && <span className={`team-chip team-chip-wide team-${seat.team}`}>{teamLabel(seat.team)}</span>}
             <span className="lobby-seat-status">{text}</span>
           </li>
         )

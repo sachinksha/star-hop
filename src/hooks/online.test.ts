@@ -304,3 +304,75 @@ describe('joining as a guest', () => {
     expect(useOnlineStore.getState().guest!.getView().status).toBe('ended')
   })
 })
+
+describe('hosting a team game', () => {
+  // The guest (red) and the host (green) are partners against two bots.
+  const SEATS: PlayerConfig[] = [
+    { color: 'red', kind: 'human', remote: true, team: 0 },
+    { color: 'orange', kind: 'bot', team: 1 },
+    { color: 'green', kind: 'human', name: 'Host', team: 0 },
+    { color: 'blue', kind: 'bot', team: 1 },
+  ]
+
+  it('relays the host’s nudge to the finished guest, then rolls for the teammate the guest picks', async () => {
+    await act(() => useOnlineStore.getState().startHosting(SEATS))
+    const host = useOnlineStore.getState().host!
+    const invite = parseInvite(new URL(host.getView().inviteUrl).hash)!
+    const received: { action: GameAction; seq: number }[] = []
+    const nudges: unknown[] = []
+    const guest = new GuestSession(
+      network,
+      invite,
+      'Asha',
+      { onSync: () => {}, onAction: (action, seq) => received.push({ action, seq }), onPaused: () => {}, onNudges: (n) => nudges.push(n) },
+      memStore(),
+    )
+    await act(async () => {
+      await guest.connect()
+      await tick()
+    })
+    act(() => useOnlineStore.getState().startHostedGame())
+    await act(tick)
+    // Red has finished and is to roll for the team.
+    const g = useGameStore.getState().game!
+    const home = (slot: number) => ({ kind: 'home' as const, slot })
+    const players = g.players.map((p) =>
+      p.color === 'red'
+        ? { ...p, finishRank: 1, marbles: p.marbles.map((m) => ({ ...m, spot: home(m.id) })) }
+        : p.color === 'green'
+          ? { ...p, marbles: p.marbles.map((m) => (m.id === 0 ? { ...m, spot: { kind: 'loop' as const, pos: 50 } } : m)) }
+          : p,
+    )
+    const custom = { ...g, players, currentIndex: 0, winners: ['red' as const] }
+    act(() => useGameStore.setState({ game: custom, initial: custom }))
+    const { result } = renderHook(() => useStarHopGame(THREE))
+
+    // The host player suggests rolling for themselves; only the team hears it.
+    act(() => useOnlineStore.getState().nudge('green', { kind: 'rollFor', color: 'green' }))
+    await act(tick)
+    expect(nudges).toEqual([[{ from: 'green', seq: 0, nudge: { kind: 'rollFor', color: 'green' } }]])
+    // An opponent's nudge is dropped.
+    act(() => useOnlineStore.getState().nudge('orange', { kind: 'pass' }))
+    expect(useOnlineStore.getState().nudges).toHaveLength(1)
+
+    // Nothing rolls by itself on a helper turn, even for the host's automation.
+    await act(async () => {
+      vi.advanceTimersByTime(TIMING.AUTO_ROLL_MS * 3)
+      await tick()
+    })
+    expect(received).toEqual([])
+
+    guest.sendIntent(0, { action: 'roll', for: 'green' } satisfies Intent)
+    await act(tick)
+    await act(async () => {
+      vi.advanceTimersByTime(10)
+      await tick()
+    })
+    expect(received[0]).toEqual({ action: { type: 'roll', value: 3, actor: 'human', for: 'green' }, seq: 0 })
+    await act(async () => {
+      vi.advanceTimersByTime(TIMING.ROLL_MS + 50)
+      await tick()
+    })
+    expect(result.current.mover.color).toBe('green')
+  })
+})

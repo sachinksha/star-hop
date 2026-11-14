@@ -10,7 +10,8 @@ import type { Color, GameAction, PlayerConfig } from '../game/types'
 import { GuestSession, type SeatStore } from '../net/guestSession'
 import { HostSession } from '../net/hostSession'
 import type { Invite } from '../net/invite'
-import type { Intent } from '../net/protocol'
+import { acceptNudge, teamColors } from '../net/nudges'
+import type { Intent, Nudge, TeamNudge } from '../net/protocol'
 import type { Network } from '../net/transport'
 import { useGameStore } from './gameStore'
 
@@ -31,6 +32,8 @@ export interface OnlineStoreState {
   connecting: boolean
   error: string | null
   inbox: Inbound[]
+  /** Team play: suggestions for the finished teammate about to roll (see net/nudges.ts). */
+  nudges: TeamNudge[]
 
   /** Opens a host endpoint and a lobby for these seats. */
   startHosting: (configs: PlayerConfig[]) => Promise<void>
@@ -44,6 +47,8 @@ export interface OnlineStoreState {
   reconnect: () => void
   /** Leaves online play (ending the session if hosting) and returns to local setup. */
   leave: () => void
+  /** Team play: this device's player `from` suggests something to the roller. */
+  nudge: (from: Color, nudge: Nudge) => void
   /** Removes and returns the first inbox item. */
   shiftInbox: () => Inbound | undefined
   clearInbox: () => void
@@ -103,6 +108,7 @@ export const useOnlineStore = create<OnlineStoreState>()((set, get) => ({
   connecting: false,
   error: null,
   inbox: [],
+  nudges: [],
 
   startHosting: async (configs) => {
     set({ role: 'host', connecting: true, error: null, inbox: [] })
@@ -114,6 +120,7 @@ export const useOnlineStore = create<OnlineStoreState>()((set, get) => ({
       }
       const session = new HostSession(endpoint, configs, { baseUrl: baseUrl() })
       session.onIntent = (color, seq, intent) => set((s) => ({ inbox: [...s.inbox, { kind: 'intent', color, seq, intent }] }))
+      session.onNudge = (color, seq, nudge) => hostNudge(color, seq, nudge)
       set({ host: session, connecting: false })
     } catch {
       set({
@@ -158,6 +165,7 @@ export const useOnlineStore = create<OnlineStoreState>()((set, get) => ({
           set((s) => ({ inbox: [...s.inbox, { kind: 'action', action, seq, gameId }] }))
         },
         onPaused: (paused) => useGameStore.getState().setPaused(paused),
+        onNudges: (nudges) => set({ nudges }),
       },
       seatStore,
     )
@@ -178,10 +186,18 @@ export const useOnlineStore = create<OnlineStoreState>()((set, get) => ({
     host?.end()
     guest?.leave()
     clearInviteFromUrl()
-    set({ role: 'local', host: null, guest: null, invite: null, inbox: [], connecting: false, error: null })
+    set({ role: 'local', host: null, guest: null, invite: null, inbox: [], nudges: [], connecting: false, error: null })
     // A guest who never joined may still have a saved local game: keep it.
     const { configs, abort } = useGameStore.getState()
     if (host || configs === null) abort()
+  },
+
+  nudge: (from, nudge) => {
+    const { role, guest } = get()
+    const game = useGameStore.getState().game
+    if (!game) return
+    if (role === 'guest') guest?.sendNudge(game.actionSeq, nudge)
+    else if (role === 'host') hostNudge(from, game.actionSeq, nudge)
   },
 
   shiftInbox: () => {
@@ -192,6 +208,20 @@ export const useOnlineStore = create<OnlineStoreState>()((set, get) => ({
 
   clearInbox: () => set({ inbox: [] }),
 }))
+
+/**
+ * Host: checks a nudge against the current position and shares the team's
+ * updated suggestions with that team only. Anything invalid is dropped.
+ */
+function hostNudge(from: Color, seq: number, nudge: Nudge): void {
+  const { host, nudges } = useOnlineStore.getState()
+  const game = useGameStore.getState().game
+  if (!host || !game) return
+  const next = acceptNudge(game, seq, nudges, from, nudge)
+  if (!next) return
+  useOnlineStore.setState({ nudges: next })
+  host.shareNudges(teamColors(game), next)
+}
 
 // Host: every new game (first start or "New game") and every pause change goes
 // to the guests. Watching the store keeps this out of the UI components.

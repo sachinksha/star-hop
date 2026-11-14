@@ -6,7 +6,7 @@ import type { Color, PlayerConfig, Spot } from '../game/types'
 import { DEFAULT_SETTINGS, useGameStore } from '../store/gameStore'
 import { TIMING, useStarHopGame } from './useStarHopGame'
 
-vi.mock('../audio/sfx', () => ({ playSound: vi.fn(), setMuted: vi.fn(), isMuted: () => false }))
+vi.mock('../audio/sfx', () => ({ playSound: vi.fn(), previewSound: vi.fn(), setMuted: vi.fn(), setVolume: vi.fn(), setSoundTheme: vi.fn(), isMuted: () => false }))
 
 const TWO: PlayerConfig[] = [
   { color: 'red', kind: 'human' },
@@ -57,7 +57,8 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.mocked(playSound).mockClear()
   store().abort()
-  store().updateSettings(DEFAULT_SETTINGS)
+  // These tests cover the automation, so it starts on; tests that need it off say so.
+  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: true, autoMove: true })
 })
 
 afterEach(() => {
@@ -261,5 +262,68 @@ describe('undo, redo and pause', () => {
     expect(store().actions).toHaveLength(0)
     act(() => result.current.togglePause())
     expect(result.current.paused).toBe(false)
+  })
+})
+
+describe('team play', () => {
+  /** Red and green (team A) against orange and blue (team B). */
+  const TEAMS: PlayerConfig[] = [
+    { color: 'red', kind: 'human', team: 0 },
+    { color: 'orange', kind: 'bot', team: 1 },
+    { color: 'green', kind: 'human', team: 0 },
+    { color: 'blue', kind: 'bot', team: 1 },
+  ]
+  const allHome = [home(0), home(1), home(2), home(3)]
+  /** Marks red finished, so red's turn is a helper turn. */
+  function finishRed() {
+    const g = store().game!
+    const players = g.players.map((p) => (p.color === 'red' ? { ...p, finishRank: 1 } : p))
+    const custom = { ...g, players, winners: ['red' as const] }
+    useGameStore.setState({ initial: custom, game: custom })
+  }
+
+  it('never auto-rolls a finished player: they choose who to roll for, then move that marble', () => {
+    seed(TEAMS, { red: allHome, green: [loop(50)] })
+    finishRed()
+    const { result } = renderHook(() => useStarHopGame(dice(3)))
+    advance(TIMING.AUTO_ROLL_MS * 3)
+    expect(store().actions).toEqual([])
+    expect(result.current.helperChoices.map((p) => p.color)).toEqual(['green'])
+    act(() => result.current.rollFor('green'))
+    advance(TIMING.ROLL_MS + TIMING.SETTLE_MS + 50)
+    expect(store().actions).toEqual([{ type: 'roll', value: 3, actor: 'human', for: 'green' }])
+    expect(result.current.mover.color).toBe('green')
+    // Auto move plays green's only move, animating green's marble.
+    advance(TIMING.AUTO_MOVE_MS + 4 * TIMING.STEP_MS + TIMING.SETTLE_MS)
+    expect(store().actions[1]).toEqual({ type: 'move', marbleId: 0, to: loop(53), actor: 'human' })
+    expect(result.current.shownPlayers.find((p) => p.color === 'green')!.marbles[0]!.spot).toEqual(loop(53))
+  })
+
+  it('lets a finished player pass', () => {
+    seed(TEAMS, { red: allHome, green: [loop(50)] })
+    finishRed()
+    const { result } = renderHook(() => useStarHopGame(dice(3)))
+    act(() => result.current.pass())
+    advance(TIMING.SETTLE_MS)
+    expect(store().actions).toEqual([{ type: 'pass', actor: 'human' }])
+    expect(store().game!.players[store().game!.currentIndex]!.color).toBe('orange')
+  })
+
+  it('a finished bot rolls for its teammate by itself', () => {
+    const bots: PlayerConfig[] = TEAMS.map((c) => (c.color === 'red' ? { ...c, kind: 'bot' as const } : c))
+    seed(bots, { red: allHome, green: [loop(50)] })
+    finishRed()
+    renderHook(() => useStarHopGame(dice(3)))
+    advance(TIMING.BOT_ROLL_MS + TIMING.ROLL_MS + 100)
+    expect(store().actions[0]).toEqual({ type: 'roll', value: 3, actor: 'bot', for: 'green' })
+  })
+
+  it('ignores a plain roll on a finished player’s turn', () => {
+    seed(TEAMS, { red: allHome, green: [loop(50)] })
+    finishRed()
+    const { result } = renderHook(() => useStarHopGame(dice(3)))
+    act(() => result.current.roll())
+    advance(TIMING.ROLL_MS + 100)
+    expect(store().actions).toEqual([])
   })
 })

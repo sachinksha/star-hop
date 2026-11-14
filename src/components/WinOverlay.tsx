@@ -1,9 +1,12 @@
+import { teamLabel, type TeamStanding } from '../game/teams'
 import type { Color } from '../game/types'
 import { COLOR_HEX, COLOR_NAME } from './colors'
 import { unit } from './random'
 
 interface WinOverlayProps {
   winners: Color[]
+  /** Team play: teams in finishing order. Shown instead of individual places. */
+  teams?: TeamStanding[]
   /** Display name per colour. Falls back to the colour name. */
   names?: Partial<Record<Color, string>>
   /** Formatted game duration, shown under the heading. */
@@ -30,10 +33,17 @@ const PIECES = Array.from({ length: 90 }, (_, i) => ({
 }))
 
 /** End of game: full ranking, play again, or back to setup. */
-export function WinOverlay({ winners, names = {}, time, early, onNewGame, onSetup, setupLabel = 'Change setup', note }: WinOverlayProps) {
+export function WinOverlay({ winners, teams, names = {}, time, early, onNewGame, onSetup, setupLabel = 'Change setup', note }: WinOverlayProps) {
   const champion = winners[0]
   const label = (c: Color) => names[c] ?? COLOR_NAME[c]
-  const title = champion === undefined ? 'Game over' : label(champion) === 'You' ? 'You win!' : `${label(champion)} wins!`
+  const topTeam = teams?.[0]
+  const title = topTeam
+    ? `${teamLabel(topTeam.team)} wins!`
+    : champion === undefined
+      ? 'Game over'
+      : label(champion) === 'You'
+        ? 'You win!'
+        : `${label(champion)} wins!`
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="win-title">
@@ -56,6 +66,22 @@ export function WinOverlay({ winners, names = {}, time, early, onNewGame, onSetu
         <h2 id="win-title">{title}</h2>
         {time && <p className="overlay-note">Game time {time}</p>}
         {early && <p className="overlay-note">Ended early. Unfinished players are ranked by how far their marbles got.</p>}
+        {teams ? (
+          <ol className="standings">
+            {teams.map((t) => (
+              <li key={t.team} className="standing-team">
+                <span className="standing-rank">{t.rank}</span>
+                <span className={`team-chip team-${t.team}`} aria-hidden="true">
+                  {teamLabel(t.team).slice(-1)}
+                </span>
+                <span>
+                  <b>{teamLabel(t.team)}</b>
+                  <span className="standing-colour"> {t.members.map(label).join(' & ')}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
         <ol className="standings">
           {winners.map((c, i) => (
             <li key={c} style={{ ['--arm' as string]: COLOR_HEX[c] }}>
@@ -66,6 +92,7 @@ export function WinOverlay({ winners, names = {}, time, early, onNewGame, onSetu
             </li>
           ))}
         </ol>
+        )}
         {note && (
           <p className="overlay-note" role="status">
             {note}

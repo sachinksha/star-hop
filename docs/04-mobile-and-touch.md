@@ -157,3 +157,5 @@ On phones the game reorders the layout with CSS:
 2. Make `IS_TOUCH` reactive (a hook over `matchMedia` change events). Which components need it, and does it justify the re-renders?
 3. Audit the phone layout's tab order against its visual order. Would you change the DOM order? What would desktop lose?
 4. Find another place in the app where `px` inside the SVG could surprise someone (hint: look at `font-size` and `drop-shadow` in the board CSS).
+
+> **Follow-up.** The board's pieces turned out to be too small to tap reliably at all: about 11px, 17px apart. That second report, and how it was solved, is [chapter 11](11-touch-targets.md).

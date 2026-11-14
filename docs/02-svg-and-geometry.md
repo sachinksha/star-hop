@@ -16,11 +16,11 @@ The rules never import `layout.ts`. You can redesign the whole look (round board
 ## `viewBox` and user units
 
 ```tsx
-const VIEW = `${-VIEW_HALF} ${-VIEW_HALF} ${VIEW_HALF * 2} ${VIEW_HALF * 2}`
+const VIEW = `${-VIEW_HALF_X} ${-VIEW_HALF_Y} ${VIEW_HALF_X * 2} ${VIEW_HALF_Y * 2}`
 <svg className="board" viewBox={VIEW}>
 ```
 
-The board is designed in **user units**: holes are 1 unit apart (`HOLE_GAP`), a hole has radius 0.36, and the centre hole is at (0, 0). The `viewBox` maps that 21.6-unit square onto however many CSS pixels the `<svg>` gets. On a phone one unit is about 17 CSS pixels; on a laptop 30 to 40. Everything scales together, with no media queries for the board.
+The board is designed in **user units**: holes are 1 unit apart (`HOLE_GAP`), a hole has radius 0.4, and the centre hole is at (0, 0). The `viewBox` maps that 20.6 × 21.3-unit rectangle onto however many CSS pixels the `<svg>` gets. On a phone one unit is about 17.5 CSS pixels; on a laptop 30 to 40. (It was a 21.6-unit square around a round board until the touch-target work in [chapter 11](11-touch-targets.md) trimmed the empty sides.) Everything scales together, with no media queries for the board.
 
 **The catch:** anything sized in "px" *inside* the SVG is also in user units, because the `viewBox` transform scales the whole coordinate system. That is why the CSS says `font-size: 0.4px` for marble numbers and `stroke-width: 0.07` for halos. It is also the root cause of the mobile bug in [chapter 4](04-mobile-and-touch.md): the browser's focus ring is "a few px" wide, and inside this SVG a few px means a few board units, more than a quarter of the board.
 
@@ -88,16 +88,16 @@ For the selection "ping" the ring scales around its own centre:
 
 ## Hit targets bigger than the shapes
 
-A marble is 0.64 units across, about 11 CSS pixels on a phone, too small to tap reliably. Each pickable marble and badge gets an invisible larger circle:
+A marble is 0.76 units across, about 13 CSS pixels on a phone, too small to tap reliably. Each pickable marble and badge gets an invisible circle as its own target:
 
 ```tsx
-{canPick && <circle className="marble-hit" r={TAP_R} />}   // TAP_R = 0.72
+{canPick && <circle className="marble-hit" r={TAP_R} />}   // TAP_R = 0.5: half the hole spacing
 ```
 ```css
 .marble-hit { fill: transparent; }
 ```
 
-`fill: transparent` (not `fill: none`) matters. SVG's default `pointer-events: visiblePainted` only receives events on painted areas, and `none` is not painted. WCAG 2.2's target size criterion (2.5.8) asks for at least 24×24 CSS pixels, or enough spacing. This invisible circle is how a small visual meets it.
+`fill: transparent` (not `fill: none`) matters. SVG's default `pointer-events: visiblePainted` only receives events on painted areas, and `none` is not painted. WCAG 2.2's target size criterion (2.5.8) asks for at least 24×24 CSS pixels, or enough spacing. An invisible circle is the usual way a small visual gets a bigger target, but here neighbours are only 17.5px apart, so bigger circles would overlap. [Chapter 11](11-touch-targets.md) explains what Star Hop does instead (nearest-candidate snapping and move buttons).
 
 ## Accessible SVG
 

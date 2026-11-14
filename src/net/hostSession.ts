@@ -20,6 +20,8 @@ import {
   sanitizeName,
   type HostMessage,
   type Intent,
+  type Nudge,
+  type TeamNudge,
   type RejectReason,
   type SeatView,
   type Snapshot,
@@ -34,6 +36,8 @@ interface Seat {
   kind: PlayerConfig['kind']
   remote: boolean
   name: string
+  /** Team number in team play. */
+  team?: number
   /** Lets a guest who disconnected reclaim this seat. Null until claimed. */
   secret: string | null
   channel: Channel | null
@@ -70,6 +74,8 @@ export class HostSession {
 
   /** Called when a connected guest asks to roll or move for its seat. */
   onIntent: ((color: Color, seq: number, intent: Intent) => void) | null = null
+  /** Called when a connected guest suggests something to a teammate (team play). */
+  onNudge: ((color: Color, seq: number, nudge: Nudge) => void) | null = null
 
   constructor(endpoint: HostEndpoint, configs: PlayerConfig[], options: HostOptions) {
     this.endpoint = endpoint
@@ -82,6 +88,7 @@ export class HostSession {
       kind: c.kind,
       remote: c.kind === 'human' && c.remote === true,
       name: names[i]!,
+      ...(c.team !== undefined ? { team: c.team } : {}),
       secret: null,
       channel: null,
     }))
@@ -126,9 +133,12 @@ export class HostSession {
       }
     }
     this.changed()
-    return this.seats.map((s) =>
-      s.remote ? { color: s.color, kind: 'human', remote: true, name: s.name } : { color: s.color, kind: s.kind, ...(s.kind === 'human' ? { name: s.name } : {}) },
-    )
+    return this.seats.map((s) => {
+      const team = s.team !== undefined ? { team: s.team } : {}
+      return s.remote
+        ? { color: s.color, kind: 'human', remote: true, name: s.name, ...team }
+        : { color: s.color, kind: s.kind, ...(s.kind === 'human' ? { name: s.name } : {}), ...team }
+    })
   }
 
   /** Starts (or restarts) a game and sends it to every guest. */
@@ -160,6 +170,11 @@ export class HostSession {
       }
     }
     this.broadcast({ t: 'action', gameId: this.snapshot.gameId, seq, action })
+  }
+
+  /** Sends the team's current suggestions to those seats only. Opponents never see them. */
+  shareNudges(colors: Color[], nudges: TeamNudge[]): void {
+    for (const s of this.seats) if (colors.includes(s.color)) s.channel?.send({ t: 'nudges', nudges } satisfies HostMessage)
   }
 
   setPaused(paused: boolean): void {
@@ -215,6 +230,8 @@ export class HostSession {
       if (msg.t === 'intent') {
         const { t: _t, seq, ...intent } = msg
         this.onIntent?.(seat.color, seq, intent)
+      } else if (msg.t === 'nudge') {
+        this.onNudge?.(seat.color, msg.seq, msg.nudge)
       } else if (msg.t === 'resync' && this.snapshot) {
         channel.send({ t: 'sync', snapshot: this.snapshot } satisfies HostMessage)
       } else if (msg.t === 'leave') {
@@ -281,6 +298,7 @@ export class HostSession {
         kind: s.kind,
         remote: s.remote,
         name: s.name,
+        ...(s.team !== undefined ? { team: s.team } : {}),
         joined: s.secret !== null,
         connected: s.channel !== null,
       })),

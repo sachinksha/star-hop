@@ -2,7 +2,7 @@
 
 Star Hop has three themes: **System** (follows the device), **Light** and **Dark**, with the choice remembered. It is implemented with CSS custom properties, a small inline script, and no CSS-in-JS. Theming is a frequent design-system interview topic ("how would you add dark mode to a large app?", "how do you theme a component library for several brands?").
 
-Code: top of [index.css](../src/index.css), `applyTheme` and settings in [gameStore.ts](../src/store/gameStore.ts), the inline script in [index.html](../index.html), `ThemeSwitch` in [Toolbar.tsx](../src/components/Toolbar.tsx).
+Code: top of [index.css](../src/index.css), `applyTheme` and settings in [gameStore.ts](../src/store/gameStore.ts), the inline script in [index.html](../index.html), the Theme control in [SettingsSheet.tsx](../src/components/SettingsSheet.tsx).
 
 ## Tokens: name the role, not the colour
 
@@ -109,7 +109,7 @@ The React bundle loads after first paint. If the theme were applied only by Reac
 
 ## The setting itself
 
-The theme is one field of the persisted `Settings` ([chapter 6](06-persistence.md)), validated on load (`THEMES.includes(parsed.theme)`), and applied in two places: in `initialState()` when the store is created, and in `updateSettings` on change. `ThemeSwitch` cycles System → Light → Dark with an `aria-label` that says both the current theme and what a click will do ("Theme: System. Switch to Light"), which is better than a bare toggle when there are three states.
+The theme is one field of the persisted `Settings` ([chapter 6](06-persistence.md)), validated on load (`THEMES.includes(parsed.theme)`), and applied in two places: in `initialState()` when the store is created, and in `updateSettings` on change. The control is a segmented group of three native radio buttons (System, Light, Dark) in the Settings sheet. It replaced an earlier toolbar button that cycled through the three on each click. A cycling button has to announce both the current state and the next one ("Theme: System. Switch to Light"), and you can't see all the options at once. With three states that are all visible, radios are simpler and more honest. [Chapter 14](14-settings.md) covers that change.
 
 ## Exercises
 

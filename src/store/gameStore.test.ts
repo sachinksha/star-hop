@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isMuted } from '../audio/sfx'
 import type { GameAction, PlayerConfig } from '../game/types'
-import { DEFAULT_SETTINGS, LAST_SETUP_KEY, SAVED_GAME_KEY, SETTINGS_KEY, loadSavedGame, useGameStore } from './gameStore'
+import { DEFAULT_SETTINGS, LAST_SETUP_KEY, SAVED_GAME_KEY, SAVE_VERSION, SETTINGS_KEY, loadSavedGame, migrateSave, useGameStore } from './gameStore'
 
 const TWO: PlayerConfig[] = [
   { color: 'red', kind: 'human' },
@@ -104,13 +104,28 @@ describe('game store: theme', () => {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'dark', sound: false }))
     vi.resetModules()
     let fresh = (await import('./gameStore')).useGameStore.getState()
-    expect(fresh.settings).toMatchObject({ theme: 'dark', sound: false, autoRoll: true })
+    expect(fresh.settings).toMatchObject({ theme: 'dark', sound: false, autoRoll: false })
     expect(document.documentElement.dataset.theme).toBe('dark')
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'neon' }))
     vi.resetModules()
     fresh = (await import('./gameStore')).useGameStore.getState()
     expect(fresh.settings.theme).toBe('system')
     fresh.updateSettings({ theme: 'system' })
+  })
+
+  it('adds new settings without a version bump: old saves just lack the keys', async () => {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoRoll: false, theme: 'dark' }))
+    vi.resetModules()
+    let fresh = (await import('./gameStore')).useGameStore.getState()
+    expect(fresh.settings).toMatchObject({ autoRoll: false, soundTheme: 'classic', volume: 0.8, moveButtons: 'auto' })
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ soundTheme: 'tabla', volume: 0.3, moveButtons: 'on' }))
+    vi.resetModules()
+    fresh = (await import('./gameStore')).useGameStore.getState()
+    expect(fresh.settings).toMatchObject({ soundTheme: 'tabla', volume: 0.3, moveButtons: 'on' })
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ soundTheme: 'kazoo', volume: 7, moveButtons: 'maybe' }))
+    vi.resetModules()
+    fresh = (await import('./gameStore')).useGameStore.getState()
+    expect(fresh.settings).toMatchObject({ soundTheme: 'classic', volume: 0.8, moveButtons: 'auto' })
   })
 })
 
@@ -153,6 +168,20 @@ describe('game store: saved local game', () => {
     expect(loadSavedGame()).toBeNull()
     window.localStorage.setItem(SAVED_GAME_KEY, JSON.stringify({ ...saved, actions: [ENTER[1]] }))
     expect(loadSavedGame()).toBeNull()
+  })
+
+  it('upgrades a version 1 save (before team play) and resumes it', async () => {
+    store().start(TWO, FIRST)
+    ENTER.forEach((a) => store().record(a))
+    const saved = JSON.parse(window.localStorage.getItem(SAVED_GAME_KEY)!)
+    expect(saved.v).toBe(SAVE_VERSION)
+    const { playingFor: _gone, ...oldInitial } = saved.initial
+    window.localStorage.setItem(SAVED_GAME_KEY, JSON.stringify({ ...saved, v: 1, initial: oldInitial }))
+    expect(migrateSave({ v: 1, initial: oldInitial })).toMatchObject({ v: 2, initial: { playingFor: null } })
+    const loaded = loadSavedGame()
+    expect(loaded?.v).toBe(2)
+    expect(loaded?.initial.playingFor).toBeNull()
+    expect(loaded?.actions).toEqual(ENTER)
   })
 
   it('resumes a saved game, paused, when the page loads again', async () => {

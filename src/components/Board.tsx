@@ -1,12 +1,16 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { COLORS, LOOP_LENGTH, STAR_INDICES, isStar, preStartIndex, startIndex } from '../game/board'
 import { describeBoard, destinationLabel } from '../game/describe'
 import {
+  BOARD_CORNER,
+  BOARD_HALF_X,
+  BOARD_HALF_Y,
   CENTER_POINT,
   HOLE_R,
   MARBLE_R,
   STAR_RADIUS,
-  VIEW_HALF,
+  VIEW_HALF_X,
+  VIEW_HALF_Y,
   armOutline,
   baseOutline,
   basePoint,
@@ -18,13 +22,15 @@ import {
 } from '../game/layout'
 import type { Color, Move, Player } from '../game/types'
 import { COLOR_HEX, COLOR_NAME } from './colors'
+import type { PadTarget } from './MovePad'
+import { snapTap } from './snap'
 
 interface BoardProps {
   /** Players as drawn (lags the game while a move animates). */
   players: Player[]
   /** Arm drawn at the bottom: this device's player. */
   bottom: number
-  /** Seat to play next. Its arm is highlighted. */
+  /** Seat whose marbles move next (a teammate being rolled for, in team play). Its arm is highlighted. */
   activeColor: Color | null
   /** Marbles of the active seat that can be picked now. */
   pickable: number[]
@@ -32,18 +38,23 @@ interface BoardProps {
   selected: number | null
   /** The selected marble's destinations, badge 1 first. */
   destinations: Move[]
-  /** Show 1-4 on the active seat's marbles as keyboard hints. */
+  /** Show 1-4 on the active seat's marbles: keyboard hints, and the link to the move buttons. */
   showNumbers: boolean
+  /** A move button being pressed: its marble or destination is highlighted. */
+  padTarget?: PadTarget | null
   /** The most recent move, drawn as a faint trail. */
   lastMove?: { color: Color; move: Move } | null
   onPickMarble: (marbleId: number) => void
   onChooseMove: (move: Move) => void
 }
 
-/** Radius of invisible tap targets around pickable marbles and badges. */
-const TAP_R = 0.72
-
-const VIEW = `${-VIEW_HALF} ${-VIEW_HALF} ${VIEW_HALF * 2} ${VIEW_HALF * 2}`
+/**
+ * Radius of the invisible tap target on each pickable marble and badge: half
+ * the hole spacing, so neighbouring targets never overlap. Taps that miss
+ * every target go to the nearest candidate instead (see snapTap).
+ */
+const TAP_R = 0.5
+const VIEW = `${-VIEW_HALF_X} ${-VIEW_HALF_Y} ${VIEW_HALF_X * 2} ${VIEW_HALF_Y * 2}`
 const fmt = (p: Point) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`
 
 /** Enter or Space activates an SVG element acting as a button. */
@@ -58,7 +69,14 @@ const onActivate = (fn: () => void) => (e: KeyboardEvent) => {
 function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Set<Color>; activeColor: Color | null }) {
   return (
     <g aria-hidden="true">
-      <circle className="board-bg" cx={0} cy={0} r={VIEW_HALF - 0.15} />
+      <rect
+        className="board-bg"
+        x={-BOARD_HALF_X}
+        y={-BOARD_HALF_Y}
+        width={BOARD_HALF_X * 2}
+        height={BOARD_HALF_Y * 2}
+        rx={BOARD_CORNER}
+      />
       {COLORS.map((color, arm) => (
         <polygon
           key={`arm-${color}`}
@@ -141,13 +159,34 @@ function LastMoveTrail({ color, move, bottom }: { color: Color; move: Move; bott
   )
 }
 
-export function Board({ players, bottom, activeColor, pickable, selected, destinations, showNumbers, lastMove = null, onPickMarble, onChooseMove }: BoardProps) {
+export function Board({ players, bottom, activeColor, pickable, selected, destinations, showNumbers, padTarget = null, lastMove = null, onPickMarble, onChooseMove }: BoardProps) {
   /** Badge being hovered or focused: its path is previewed. */
   const [preview, setPreview] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const seated = new Set(players.map((p) => p.color))
   const pickSet = new Set(pickable)
   const active = players.find((p) => p.color === activeColor)
-  const previewMove = preview !== null ? destinations[preview] : undefined
+  const shownPreview = preview ?? (padTarget?.kind === 'destination' ? padTarget.index : null)
+  const previewMove = shownPreview !== null ? destinations[shownPreview] : undefined
+  const padMarble = padTarget?.kind === 'marble' ? padTarget.id : null
+
+  /** A tap that missed every piece: give it to the nearest usable one, if the choice is clear. */
+  const onBoardClick = (e: MouseEvent<SVGSVGElement>) => {
+    if ((e.target as Element).closest('[data-hit]')) return // a piece's own handler took it
+    const ctm = svgRef.current?.getScreenCTM?.()
+    if (!ctm || !active) return
+    const at = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse())
+    type Hit = { kind: 'marble'; id: number } | { kind: 'move'; move: Move }
+    const candidates: { p: Point; value: Hit }[] = [
+      ...active.marbles
+        .filter((m) => pickSet.has(m.id))
+        .map((m) => ({ p: marblePoint(active.color, m.id, m.spot, bottom), value: { kind: 'marble', id: m.id } as Hit })),
+      ...destinations.map((move) => ({ p: marblePoint(active.color, move.marbleId, move.to, bottom), value: { kind: 'move', move } as Hit })),
+    ]
+    const hit = snapTap(at, candidates)
+    if (hit?.kind === 'marble') onPickMarble(hit.id)
+    if (hit?.kind === 'move') onChooseMove(hit.move)
+  }
 
   const pointOf = (move: Move, i: number): Point => {
     const spot = i < 0 ? move.from : move.path[i]!
@@ -156,7 +195,8 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
 
   return (
     <div className="board-wrap">
-      <svg className="board" viewBox={VIEW} role="group" aria-label="Star Hop board">
+      {/* The click handler only refines pointer taps; keyboard users use each piece's own button role. */}
+      <svg ref={svgRef} className="board" viewBox={VIEW} role="group" aria-label="Star Hop board" onClick={onBoardClick}>
         <BoardBase bottom={bottom} seated={seated} activeColor={activeColor} />
 
         {lastMove && <LastMoveTrail {...lastMove} bottom={bottom} />}
@@ -180,7 +220,8 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
             return (
               <g
                 key={`marble-${player.color}-${m.id}`}
-                className={`marble${canPick ? ' marble-pickable' : ''}${isSelected ? ' marble-selected' : ''}`}
+                className={`marble${canPick ? ' marble-pickable' : ''}${isSelected ? ' marble-selected' : ''}${mine && padMarble === m.id ? ' marble-previewed' : ''}`}
+                data-hit={canPick ? '' : undefined}
                 style={{ transform: `translate(${p.x}px, ${p.y}px)`, ['--arm' as string]: COLOR_HEX[player.color] }}
                 data-testid={`marble-${player.color}-${m.id}`}
                 role={canPick ? 'button' : undefined}
@@ -214,7 +255,8 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
             return (
               <g
                 key={`dest-${i}`}
-                className={`badge${move.bumped ? ' badge-bump' : ''}`}
+                className={`badge${move.bumped ? ' badge-bump' : ''}${shownPreview === i ? ' badge-previewed' : ''}`}
+                data-hit=""
                 style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
                 role="button"
                 tabIndex={0}
@@ -229,7 +271,7 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
               >
                 <title>{label}</title>
                 <circle className="marble-hit" r={TAP_R} />
-                <circle className="badge-body" r={0.44} />
+                <circle className="badge-body" r={0.46} />
                 <text className="badge-number" textAnchor="middle" dominantBaseline="central" aria-hidden="true">
                   {i + 1}
                 </text>

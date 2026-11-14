@@ -55,7 +55,7 @@ export type ToggleSetting = { [K in keyof Settings]: Settings[K] extends boolean
 // = 'autoRoll' | 'autoMove' | 'comebackDice' | 'sound'   (not 'theme')
 ```
 
-Read it in three steps: map each key to itself if its value is boolean, else to `never`; then index the result by all keys to get a union; the `never` members disappear. `SettingSwitch` takes a `ToggleSetting`, so the compiler stops anyone rendering an on/off switch for the three-valued `theme`. Add a boolean setting and it becomes switchable automatically. Being able to read and write a type like this in an interview signals real TypeScript depth.
+Read it in three steps: map each key to itself if its value is boolean, else to `never`; then index the result by all keys to get a union; the `never` members disappear. `SwitchRow` in the Settings sheet takes a `ToggleSetting`, so the compiler stops anyone rendering an on/off switch for the three-valued `theme` or the 0-to-1 `volume`. Add a boolean setting and it becomes switchable automatically. Being able to read and write a type like this in an interview signals real TypeScript depth.
 
 ## Dev/prod parity: one function, two hosts
 
@@ -100,6 +100,9 @@ Local players never download it. The second line also **parallelises** the libra
 | Pointer Events, pointer capture | Sheet swipe | One input model for touch, mouse and pen | Universal now |
 | `crypto.getRandomValues` | Dice | Unpredictable randomness | `Math.random` |
 | `matchMedia` input queries | `IS_TOUCH` | Capability detection | Treated as non-touch |
+| `:has()` on form state | Segmented controls in Settings: `.segment:has(input:checked)` | Style a label from its native radio, so the control stays a real radio group | Selected option not highlighted (still works) |
+| Web Audio synthesis, `OfflineAudioContext` | [src/audio/](../src/audio/) | Every sound theme generated in code; offline rendering to measure loudness | Silent game |
+| `DOMPoint` + `getScreenCTM()` | Tap snapping in [Board.tsx](../src/components/Board.tsx) | Turn a tap's screen position into board units | Taps must land on a piece |
 
 How to judge "is it safe to use?":
 

@@ -6,6 +6,7 @@ import { sanitizeName } from '../net/protocol'
 import { MAX_NAME_LENGTH } from '../game/types'
 import { useOnlineStore } from '../store/onlineStore'
 import { RulesButton } from './RulesSheet'
+import { SettingsButton } from './SettingsSheet'
 import { SeatList } from './SeatList'
 
 const NAME_KEY = 'star-hop:guestName'
@@ -117,6 +118,7 @@ export function JoinScreen() {
     <section className="setup lobby" aria-labelledby="join-title">
       <div className="setup-corner">
         <RulesButton />
+        <SettingsButton />
       </div>
       <h1 id="join-title">Join a Star Hop game</h1>
       <p className="tagline">No sign-up. Just a name.</p>

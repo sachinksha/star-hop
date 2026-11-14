@@ -26,9 +26,13 @@ export interface Point {
 
 /** Distance between neighbouring holes. */
 export const HOLE_GAP = 1
-/** Radius of a drawn hole and of a marble. */
-export const HOLE_R = 0.36
-export const MARBLE_R = 0.32
+/**
+ * Radius of a drawn hole and of a marble. Holes are 1 apart, so a marble is
+ * 0.76 of the spacing: as large as it can be while neighbours still read as
+ * separate pieces. (They were 0.64 before the phone tap-target work.)
+ */
+export const HOLE_R = 0.4
+export const MARBLE_R = 0.38
 /** Distance from the centre to the innermost holes of each arm. */
 export const ARM_INNER = 3.4
 /** Sideways offset of the two loop columns from the arm's middle line. */
@@ -37,8 +41,19 @@ export const ARM_HALF = 1
 export const STAR_RADIUS = 3
 /** Distance from the centre to the base holes. */
 const BASE_ALONG = ARM_INNER + 6.3
-/** The square viewBox needed to fit everything, centred on (0, 0). */
-export const VIEW_HALF = 10.8
+/**
+ * The board's background: a rounded rectangle just big enough for the arms.
+ * With the bottom arm pointing down, arms reach about 10.3 up and down but
+ * only 9.95 sideways, so a rectangle (not the old circle, radius 10.65) gives
+ * a portrait phone, where width is what limits the board, about 7% more pixels
+ * per hole.
+ */
+export const BOARD_HALF_X = 10.15
+export const BOARD_HALF_Y = 10.5
+export const BOARD_CORNER = 2.4
+/** Half the viewBox width and height, centred on (0, 0): the board plus its edge. */
+export const VIEW_HALF_X = BOARD_HALF_X + 0.15
+export const VIEW_HALF_Y = BOARD_HALF_Y + 0.15
 
 const DEG = Math.PI / 180
 

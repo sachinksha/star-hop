@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { COLORS, armOf } from '../game/board'
 import { MAX_PLAYERS, MIN_PLAYERS, displayNames } from '../game/engine'
 import { validateNames } from '../game/names'
+import { TEAM_OPTIONS, assignTeams, teamLabel } from '../game/teams'
 import { MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { COLOR_HEX, COLOR_NAME } from './colors'
 import { RulesButton } from './RulesSheet'
-import { ThemeSwitch } from './Toolbar'
+import { SettingsButton } from './SettingsSheet'
 
 /** What sits in a seat. "friend" is a human on another device; it only exists online. */
 type SeatKind = 'human' | 'bot' | 'friend'
@@ -53,6 +54,10 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
   const [kinds, setKinds] = useState<Partial<Record<Color, SeatKind>>>(() =>
     Object.fromEntries(valid0?.map((c) => [c.color, c.remote ? 'friend' : c.kind]) ?? []),
   )
+  /** Number of teams, or 0 for everyone on their own. Only offered for 4 and 6 players. */
+  const [teamCount, setTeamCount] = useState<number>(() =>
+    valid0?.every((c) => c.team !== undefined) ? new Set(valid0.map((c) => c.team)).size : 0,
+  )
   const [names, setNames] = useState<Partial<Record<Color, string>>>(() =>
     Object.fromEntries(valid0?.filter((c) => c.name && !c.remote).map((c) => [c.color, c.name!]) ?? []),
   )
@@ -61,17 +66,21 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
 
   const count = arms.length
   const seats = byArm(arms)
+  const teamChoices = TEAM_OPTIONS[count] ?? []
+  // A team layout that doesn't fit the new player count quietly switches off.
+  const teams = teamChoices.includes(teamCount) ? assignTeams(count, teamCount) : null
   // The first seat defaults to a human, the rest to bots. Locally a friend seat is just a human.
   const kindOf = (c: Color): SeatKind => {
     const kind = kinds[c] ?? (c === seats[0] ? 'human' : 'bot')
     return play === 'local' && kind === 'friend' ? 'human' : kind
   }
   const configsFor = (custom: boolean): PlayerConfig[] =>
-    seats.map((color) => {
+    seats.map((color, i) => {
       const kind = kindOf(color)
-      if (kind === 'friend') return { color, kind: 'human', remote: true }
+      const team = teams ? { team: teams[i]! } : {}
+      if (kind === 'friend') return { color, kind: 'human', remote: true, ...team }
       const name = custom && kind === 'human' ? names[color]?.trim() : undefined
-      return name ? { color, kind, name } : { color, kind }
+      return name ? { color, kind, name, ...team } : { color, kind, ...team }
     })
 
   const defaults = displayNames(configsFor(false))
@@ -104,7 +113,7 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
     <section className="setup" aria-labelledby="setup-title">
       <div className="setup-corner">
         <RulesButton />
-        <ThemeSwitch />
+        <SettingsButton />
       </div>
       <h1 id="setup-title">Star Hop</h1>
       <p className="tagline">A marble race for 2 to 6. Roll, hop the stars, bump your friends.</p>
@@ -128,6 +137,24 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
           </label>
         ))}
       </fieldset>
+
+      {teamChoices.length > 0 && (
+        <fieldset className="choice-row">
+          <legend>Teams</legend>
+          {[0, ...teamChoices].map((k) => (
+            <label key={k} className="chip">
+              <input type="radio" name="teams" value={k} checked={(teams ? teamCount : 0) === k} onChange={() => setTeamCount(k)} />
+              {k === 0 ? 'Everyone for themselves' : `${k} teams of ${count / k}`}
+            </label>
+          ))}
+          {teams && (
+            <p className="setup-hint setup-hint-wide">
+              Teammates sit apart and take turns in between. They can't bump each other, and once you're home you roll for a
+              teammate. Click seats to choose who plays which.
+            </p>
+          )}
+        </fieldset>
+      )}
 
       {count < MAX_PLAYERS && (
         <fieldset className="arm-picker">
@@ -153,11 +180,12 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
 
       <fieldset className="seat-list">
         <legend>Seats</legend>
-        {shown.map(({ color, kind, name }) => {
+        {shown.map(({ color, kind, name }, i) => {
           const error = errors[color]
           const inputId = `name-${color}`
           return (
             <div key={color} className="seat-card" style={{ ['--arm' as string]: COLOR_HEX[color] }}>
+              {teams && <span className={`team-chip team-chip-wide team-${teams[i]}`}>{teamLabel(teams[i]!)}</span>}
               <button
                 type="button"
                 className="seat-kind"

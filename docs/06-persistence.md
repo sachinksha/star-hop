@@ -34,8 +34,9 @@ Online games are never saved locally: the host owns them, and a refresh can't br
 
 ```ts
 export function loadSavedGame(): SavedGame | null {
-  const parsed = readJson(SAVED_GAME_KEY)
-  if (!isObject(parsed) || parsed.v !== SAVE_VERSION) return null
+  const raw = readJson(SAVED_GAME_KEY)
+  const parsed = isObject(raw) ? migrateSave(raw) : null   // upgrade old versions first
+  if (!parsed) return null
   ...
   let state: GameState = initial
   for (const action of actions) {
@@ -54,19 +55,31 @@ Be precise about what this guarantees in an interview: it guarantees **the actio
 
 ## Versioning and migrations
 
-`SAVE_VERSION = 1`, and any other version is discarded. That is the simplest policy and fine for "a game in progress": losing it on an upgrade is a small annoyance. A real product needs more. The usual shape:
+The first version simply discarded any save with a different version. Team play then made that policy cost something: `GameState` gained a field (`playingFor`, [chapter 12](12-teams.md)), so every saved game in every player's browser was suddenly "version 1". Throwing those away would have cost players their games in progress for no good reason, because the upgrade is trivial: old games had no teams, so the new field is always `null`.
+
+So `SAVE_VERSION` is now 2, and [gameStore.ts](../src/store/gameStore.ts) has a real migration chain:
 
 ```ts
-const migrations: Record<number, (old: any) => any> = {
-  1: (s) => ({ ...s, v: 2, actions: s.actions.map(renameTokenToMarble) }),
-  2: (s) => ({ ...s, v: 3, settings: { ...s.settings, theme: 'system' } }),
+const MIGRATIONS: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
+  1: (old) => ({ ...old, v: 2, initial: isObject(old.initial) ? { ...old.initial, playingFor: null } : old.initial }),
 }
-function migrate(saved: { v: number }) {
-  let s = saved
-  while (s.v < CURRENT) s = migrations[s.v]!(s)
-  return s
+
+export function migrateSave(raw: Record<string, unknown>): Record<string, unknown> | null {
+  let save = raw
+  while (save.v !== SAVE_VERSION) {
+    const step = typeof save.v === 'number' ? MIGRATIONS[save.v] : undefined
+    if (!step) return null          // unknown or future version: no path forward
+    save = step(save)
+  }
+  return save
 }
 ```
+
+Three details worth saying out loud:
+
+- **Only `initial` needed migrating.** Actions are replayed through the new engine, and every v1 action is still a valid v2 action (rolls simply lack the optional `for`). Event sourcing makes the migration surface small: you migrate the starting snapshot and the event *schema*, not every derived state.
+- **Replay still validates the result.** A migration that produced nonsense would fail replay and be dropped, so the safety net from the previous section covers migrations too.
+- **A future version returns null**, not a crash: a save written by a newer tab (after a deploy) is ignored by an older one.
 
 Principles:
 
@@ -132,7 +145,7 @@ A restored game starts paused (`paused: saved !== null`). After a refresh, a bot
 
 ## Exercises
 
-1. Bump `SAVE_VERSION` to 2 with a real change (say, rename `actor` to `by` in actions) and write the migration plus a test that a version-1 save loads.
+1. Add a version 3 with a real change (say, rename `actor` to `by` in actions). Write the 2→3 step and a test that a version-1 save walks up the chain to 3 and loads. Which part of the save does this migration touch that the 1→2 step didn't?
 2. Open the game in two tabs. Play in one, refresh the other: what happens? Add a `storage` event listener so the second tab notices. What should it then do: follow along, or refuse to continue?
 3. Measure `JSON.stringify` of a 1,000-action save. Would debouncing `persist` (with a final flush on `pagehide`) be worth it? What could go wrong?
 4. Tamper with a saved `initial` to give red five marbles. Does it load? Add the minimum check that rejects it, and say why you stopped there.

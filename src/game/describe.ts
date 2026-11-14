@@ -1,4 +1,5 @@
 import { COLORS, SECTOR_LENGTH, isStar, stepsToHome } from './board'
+import { teamLabel } from './teams'
 import type { Color, GameEvent, Move, Player } from './types'
 
 /** Colour names used in the game log. Kept here so the rules layer has no UI imports. */
@@ -36,9 +37,17 @@ function describeMove(move: Move): string {
 export function describeEvent(event: GameEvent): string | null {
   switch (event.type) {
     case 'roll':
-      return `${COLOR_NAME[event.color]} rolled a ${event.value}`
+      return event.for
+        ? `${COLOR_NAME[event.color]} rolled a ${event.value} for ${COLOR_NAME[event.for]}`
+        : `${COLOR_NAME[event.color]} rolled a ${event.value}`
     case 'move':
-      return `${COLOR_NAME[event.color]} ${describeMove(event.move)}`
+      return event.by
+        ? `${COLOR_NAME[event.by]}, playing for ${COLOR_NAME[event.color]}, ${describeMove(event.move)}`
+        : `${COLOR_NAME[event.color]} ${describeMove(event.move)}`
+    case 'pass':
+      return `${COLOR_NAME[event.color]} passed instead of rolling for the team`
+    case 'teamFinish':
+      return `${teamLabel(event.team)} finished in place ${event.rank}`
     case 'bump':
       return `${COLOR_NAME[event.color]} bumped a ${COLOR_NAME[event.victim]} marble back to base`
     case 'noMoves':
@@ -118,4 +127,39 @@ export function describeBoard(players: Player[]): string[] {
     const rank = p.finishRank !== null ? `, finished ${p.finishRank}` : ''
     return `${COLOR_NAME[p.color]} (${p.name}${rank}): ${parts.join(', ')}`
   })
+}
+
+/**
+ * A short label for a destination button, e.g. "Walk 4", "Hop 2★ +3",
+ * "Home 2", "Centre". The full sentence is destinationLabel.
+ */
+export function shortDestination(move: Move): string {
+  switch (move.via) {
+    case 'enter':
+      return 'Out to start'
+    case 'toCenter':
+      return 'Centre'
+    case 'fromCenter':
+      return move.to.kind === 'loop' ? `★ ${COLOR_NAME[COLORS[move.to.pos / SECTOR_LENGTH]!]}` : '★'
+    case 'hop': {
+      const walked = move.path.length - move.hops
+      return walked > 0 ? `Hop ${move.hops}★ +${walked}` : `Hop ${move.hops}★`
+    }
+    case 'walk':
+      return move.to.kind === 'home' ? `Home ${move.to.slot + 1}` : `Walk ${move.path.length}`
+  }
+}
+
+/** Where a marble is, in a word or two: "Base", "★ 28 to go", "28 to go", "Home". */
+export function shortSpot(color: Color, spot: Move['to']): string {
+  switch (spot.kind) {
+    case 'base':
+      return 'Base'
+    case 'center':
+      return 'Centre'
+    case 'home':
+      return 'Home'
+    case 'loop':
+      return isStar(spot.pos) ? `★ ${stepsToHome(color, spot)} to go` : `${stepsToHome(color, spot)} to go`
+  }
 }

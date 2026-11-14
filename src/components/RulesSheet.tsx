@@ -91,6 +91,26 @@ export function RulesContent() {
         </ul>
       </section>
 
+      <section aria-labelledby="rules-teams">
+        <h3 id="rules-teams">
+          Teams <span className="rules-tag">4 or 6 players</span>
+        </h3>
+        <ul>
+          <li>
+            Play as <b>2 teams of 2</b>, or with 6 players as 2 teams of 3 or 3 teams of 2. Teammates sit apart, so turns
+            go back and forth between teams.
+          </li>
+          <li>You can't bump a teammate. You can jump over their marbles, but not land on them.</li>
+          <li>
+            Once your marbles are all home you keep taking turns for your team. <b>Before you roll</b>, choose which
+            teammate the roll is for, then move their marble. You can also <b>pass</b> if a roll might do more harm
+            than good. A {BONUS_ROLL} still rolls again, and you choose again.
+          </li>
+          <li>Online, your teammates can suggest who you should roll for. Their suggestions show on your buttons; you decide.</li>
+          <li>A team finishes when everyone on it is home. The first team to finish wins.</li>
+        </ul>
+      </section>
+
       <section aria-labelledby="rules-comeback">
         <h3 id="rules-comeback">
           Comeback dice <span className="rules-tag">{comebackDice ? 'On' : 'Off'}</span>
@@ -110,7 +130,8 @@ export function RulesContent() {
             If it can go to more than one place, numbered circles show the choices. {tap} one to go there
             {IS_TOUCH ? ', or tap the marble again to go back.' : '. Press 1, 2, 3... or Esc to go back.'}
           </li>
-          <li>Auto roll and Auto move (in the toolbar) skip the clicks when there's no real choice to make.</li>
+          {IS_TOUCH && <li>The big numbered buttons under the board match the numbers on the marbles and circles. Press one to see which piece it means, and lift your finger to choose.</li>}
+          <li>Auto roll, Auto move, sounds and the theme are in Settings (the gear button).</li>
         </ul>
       </section>
     </div>

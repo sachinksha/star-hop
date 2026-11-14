@@ -12,6 +12,7 @@
  */
 import { progressOf, spotKey, stepsToHome, isStar } from './board'
 import { legalMovesFor, movesForMarble, playersAfterMove } from './rules'
+import { helperTargets, moverOf, sameSide } from './teams'
 import type { BotProfile, BotWeights, Color, GameState, Move, Persona, Player, Spot } from './types'
 
 /** Random source returning a number in [0, 1). */
@@ -89,14 +90,16 @@ function reachOf(players: Player[], player: Player): Reach {
 
 /**
  * Chance that some opponent of `color` can bump a marble on `spot` next turn,
- * treating opponents as independent. Base and home are never at risk.
+ * treating opponents as independent. Base and home are never at risk, and
+ * teammates are not opponents.
  */
 export function bumpRisk(players: Player[], color: Color, spot: Spot): number {
   if (spot.kind === 'base' || spot.kind === 'home') return 0
   const key = spotKey(color, spot)
+  const me = players.find((p) => p.color === color)
   let safe = 1
   for (const p of players) {
-    if (p.color === color || p.finishRank !== null) continue
+    if (p.finishRank !== null || (me ? sameSide(p, me) : p.color === color)) continue
     safe *= 1 - (reachOf(players, p).get(key) ?? 0)
   }
   return 1 - safe
@@ -133,14 +136,17 @@ function stake(color: Color, spot: Spot): number {
 // Scoring
 
 /**
- * Scores a candidate move for the current player. Higher is better. Without a
- * bot profile (humans, tests) the balanced weights are used. `rng` adds a
- * small nudge so near-equal moves are not always resolved the same way.
+ * Scores a candidate move for the marbles moving this turn (the roller's, or
+ * the teammate they rolled for). Higher is better. The roller's style decides
+ * the weights; without a bot profile (humans, tests) the balanced weights are
+ * used. `rng` adds a small nudge so near-equal moves are not always resolved
+ * the same way.
  */
 export function scoreMove(state: GameState, move: Move, rng: Rng = () => 0): number {
-  const player = state.players[state.currentIndex]
-  if (!player) return 0
-  const w = player.bot?.weights ?? PERSONA_WEIGHTS.balanced
+  const roller = state.players[state.currentIndex]
+  if (!roller) return 0
+  const player = moverOf(state)
+  const w = roller.bot?.weights ?? PERSONA_WEIGHTS.balanced
   const color = player.color
   let score = 0
 
@@ -182,6 +188,31 @@ export function chooseBotMove(state: GameState, rng: Rng = Math.random): Move | 
     if (score > bestScore) {
       best = move
       bestScore = score
+    }
+  }
+  return best
+}
+
+/**
+ * Team play: which unfinished teammate a finished bot rolls for. Picks the one
+ * whose best move is worth the most on average over the six die faces (a roll
+ * with no move is worth nothing). Null when it is not a helper turn. Bots
+ * never pass.
+ */
+export function chooseHelperTarget(state: GameState): Color | null {
+  let best: Color | null = null
+  let bestValue = -Infinity
+  for (const target of helperTargets(state)) {
+    let total = 0
+    for (const d of DIE_FACES) {
+      const legalMoves = legalMovesFor(state.players, target, d)
+      const trial: GameState = { ...state, phase: 'move', dice: d, playingFor: target.color, legalMoves }
+      const top = legalMoves.reduce((m, move) => Math.max(m, scoreMove(trial, move)), -Infinity)
+      total += legalMoves.length > 0 ? top : 0
+    }
+    if (total / DIE_FACES.length > bestValue) {
+      best = target.color
+      bestValue = total / DIE_FACES.length
     }
   }
   return best

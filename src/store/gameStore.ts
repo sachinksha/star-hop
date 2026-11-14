@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { setMuted } from '../audio/sfx'
+import { setMuted, setSoundTheme, setVolume } from '../audio/sfx'
+import { SOUND_THEME_IDS, type SoundThemeId } from '../audio/themes'
 import { describeEvent } from '../game/describe'
 import { applyAction, createGame, type Rng } from '../game/engine'
 import { replay, undoIndex } from '../game/history'
@@ -44,10 +45,21 @@ export interface Settings {
   sound: boolean
   /** Colour theme. 'system' follows the device's light or dark setting. */
   theme: Theme
+  /** Which instrument voices the sound effects. */
+  soundTheme: SoundThemeId
+  /** Sound effects volume, 0 to 1. */
+  volume: number
+  /**
+   * Big buttons under the board for picking marbles and destinations.
+   * 'auto' shows them on touch screens, where board pieces are small under a finger.
+   */
+  moveButtons: MoveButtons
 }
 
 export type Theme = 'system' | 'light' | 'dark'
 export const THEMES: readonly Theme[] = ['system', 'light', 'dark']
+export type MoveButtons = 'auto' | 'on' | 'off'
+export const MOVE_BUTTONS: readonly MoveButtons[] = ['auto', 'on', 'off']
 
 /** The settings that are simple on/off switches. */
 export type ToggleSetting = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings]
@@ -64,7 +76,16 @@ export function applyTheme(theme: Theme): void {
 }
 
 export const SETTINGS_KEY = 'star-hop:settings'
-export const DEFAULT_SETTINGS: Settings = { autoRoll: true, autoMove: true, comebackDice: true, sound: true, theme: 'system' }
+export const DEFAULT_SETTINGS: Settings = {
+  autoRoll: false,
+  autoMove: false,
+  comebackDice: true,
+  sound: true,
+  theme: 'system',
+  soundTheme: 'classic',
+  volume: 0.8,
+  moveButtons: 'auto',
+}
 
 function loadSettings(): Settings {
   const parsed = readJson(SETTINGS_KEY)
@@ -75,8 +96,18 @@ function loadSettings(): Settings {
       if (typeof value === 'boolean') settings[key] = value
     }
     if (THEMES.includes(parsed.theme as Theme)) settings.theme = parsed.theme as Theme
+    if (SOUND_THEME_IDS.includes(parsed.soundTheme as SoundThemeId)) settings.soundTheme = parsed.soundTheme as SoundThemeId
+    if (typeof parsed.volume === 'number' && parsed.volume >= 0 && parsed.volume <= 1) settings.volume = parsed.volume
+    if (MOVE_BUTTONS.includes(parsed.moveButtons as MoveButtons)) settings.moveButtons = parsed.moveButtons as MoveButtons
   }
   return settings
+}
+
+/** Pushes the sound settings into the audio module. */
+function applySound(settings: Settings): void {
+  setMuted(!settings.sound)
+  setVolume(settings.volume)
+  setSoundTheme(settings.soundTheme)
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +116,7 @@ function loadSettings(): Settings {
 
 export const SAVED_GAME_KEY = 'star-hop:game'
 export const LAST_SETUP_KEY = 'star-hop:last-setup'
-const SAVE_VERSION = 1
+export const SAVE_VERSION = 2
 
 interface SavedGame {
   v: number
@@ -95,12 +126,35 @@ interface SavedGame {
 }
 
 /**
+ * Upgrades a save one version at a time. Each step is small and tested once;
+ * a save from any older version walks up the chain. Returns null for a
+ * version with no path forward.
+ *
+ * v1 -> v2: team play added `GameState.playingFor`. Old games had no teams,
+ * so it is always null.
+ */
+const MIGRATIONS: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
+  1: (old) => ({ ...old, v: 2, initial: isObject(old.initial) ? { ...old.initial, playingFor: null } : old.initial }),
+}
+
+export function migrateSave(raw: Record<string, unknown>): Record<string, unknown> | null {
+  let save = raw
+  while (save.v !== SAVE_VERSION) {
+    const step = typeof save.v === 'number' ? MIGRATIONS[save.v] : undefined
+    if (!step) return null
+    save = step(save)
+  }
+  return save
+}
+
+/**
  * Reads a saved local game, or null if there is none or it does not replay
- * cleanly (old version, edited by hand, or from a different rules version).
+ * cleanly (unknown version, edited by hand, or from a different rules version).
  */
 export function loadSavedGame(): SavedGame | null {
-  const parsed = readJson(SAVED_GAME_KEY)
-  if (!isObject(parsed) || parsed.v !== SAVE_VERSION) return null
+  const raw = readJson(SAVED_GAME_KEY)
+  const parsed = isObject(raw) ? migrateSave(raw) : null
+  if (!parsed) return null
   const { configs, initial, actions } = parsed as unknown as SavedGame
   if (!Array.isArray(configs) || !isObject(initial) || !Array.isArray(initial.players) || !Array.isArray(actions)) return null
   try {
@@ -203,7 +257,7 @@ function persist(s: Pick<GameStoreState, 'configs' | 'initial' | 'actions' | 'ga
 /** Starting state: a saved local game resumes paused, so a refresh never costs a move. */
 function initialState() {
   const settings = loadSettings()
-  setMuted(!settings.sound)
+  applySound(settings)
   applyTheme(settings.theme)
   const saved = loadSavedGame()
   return {
@@ -294,7 +348,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   updateSettings: (patch) => {
     const settings = { ...get().settings, ...patch }
     writeJson(SETTINGS_KEY, settings)
-    setMuted(!settings.sound)
+    applySound(settings)
     applyTheme(settings.theme)
     set({ settings })
   },

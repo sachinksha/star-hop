@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { armOf } from '../game/board'
+import { hasTeams, isHelperTurn, teamStandings } from '../game/teams'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
 import { useGuestView, useHostView } from '../hooks/useOnline'
 import { IS_TOUCH, useShortcuts } from '../hooks/useShortcuts'
@@ -13,12 +14,18 @@ import { Die } from './Dice'
 import { FinishBanner } from './FinishBanner'
 import { GameLog, KeyboardHelp } from './GameLog'
 import { Icon } from './Icons'
+import { MovePad, type PadTarget } from './MovePad'
 import { PlayerPanel } from './PlayerPanel'
 import { RulesSheet } from './RulesSheet'
-import { SettingSwitch, ThemeSwitch, ToolButton } from './Toolbar'
+import { SettingsSheet } from './SettingsSheet'
+import { TeamTurn } from './TeamTurn'
+import { ToolButton } from './Toolbar'
 import { WinOverlay } from './WinOverlay'
 
+/** A confirmation waiting on screen: leave for setup, or start a new game. */
 type PendingAction = 'settings' | 'new' | null
+/** The sheet open over the game, if any. */
+type OpenSheet = 'rules' | 'settings' | null
 
 /** "Your turn." for the default name, otherwise addresses the player by name. */
 function turnOf(name: string): string {
@@ -26,9 +33,11 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ hop }: { hop: StarHopController }) {
-  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, isMine, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, lastMove, celebration, notice, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, undo, redo, togglePause } = hop
+  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, mover, helperChoices, isMine, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, lastMove, celebration, notice, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, rollFor, pass, undo, redo, togglePause } = hop
   const leaveOnline = useOnlineStore((s) => s.leave)
   const reconnect = useOnlineStore((s) => s.reconnect)
+  const nudges = useOnlineStore((s) => s.nudges)
+  const sendNudge = useOnlineStore((s) => s.nudge)
   const hostView = useHostView()
   const guestView = useGuestView()
   const online = role !== 'local'
@@ -36,6 +45,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const actions = useGameStore((s) => s.actions)
   const latestLog = useGameStore((s) => s.log.at(-1)?.text ?? '')
   const autoRoll = useGameStore((s) => s.settings.autoRoll)
+  const moveButtons = useGameStore((s) => s.settings.moveButtons)
   const start = useGameStore((s) => s.start)
   const abort = useGameStore((s) => s.abort)
   const configs = useGameStore((s) => s.configs)
@@ -43,9 +53,11 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const setLogOpen = useGameStore((s) => s.setLogOpen)
 
   const [pending, setPending] = useState<PendingAction>(null)
-  const [rulesOpen, setRulesOpen] = useState(false)
-  /** True when opening the rules paused the game, so closing them resumes it. */
-  const pausedForRules = useRef(false)
+  const [sheet, setSheet] = useState<OpenSheet>(null)
+  /** True when opening a sheet paused the game, so closing it resumes it. */
+  const pausedForSheet = useRef(false)
+  /** The move button being pressed, highlighted on the board. */
+  const [padTarget, setPadTarget] = useState<PadTarget | null>(null)
   /** A short hint for the last thing the player tried, tied to the position it was given in. */
   const [hint, setHint] = useState<{ seq: number; text: string } | null>(null)
   // This device's player sits at the bottom. Fixed for the game, so the board never spins.
@@ -58,8 +70,12 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const inProgress = !gameOver && actions.length > 0
   const current = game.players[game.currentIndex]!
   const elapsed = useGameClock(!paused && !gameOver)
-  const canRoll = humanTurn && game.phase === 'roll' && !busy && !paused
+  const helperTurn = isHelperTurn(game)
+  const canRoll = humanTurn && game.phase === 'roll' && !busy && !paused && !helperTurn
   const canPick = humanTurn && game.phase === 'move' && !busy && !paused
+  // Move buttons: on touch screens by default, where board pieces are smaller than a fingertip.
+  const showPad = moveButtons === 'on' || (moveButtons === 'auto' && IS_TOUCH)
+  const teams = hasTeams(game.players)
   const pickable = canPick ? [...new Set(game.legalMoves.map((m) => m.marbleId))] : []
   const lastRoll = [...actions].reverse().find((a) => a.type === 'roll')
   const shownHint = hint && hint.seq === game.actionSeq ? hint.text : null
@@ -86,21 +102,28 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           (s) => s.remote && s.joined && !s.connected && game.players.some((p) => p.color === s.color && p.remote && p.finishRank === null),
         )
       : []
-  // Reading the rules mid-game shouldn't cost a turn: a local game pauses while
-  // they are open. Online games never pause for one player.
-  const openRules = () => {
+  // Reading the rules or changing settings mid-game shouldn't cost a turn: a
+  // local game pauses while a sheet is open. Online games never pause for one player.
+  const openSheet = (which: Exclude<OpenSheet, null>) => {
     if (role === 'local' && !paused && !gameOver) {
-      pausedForRules.current = true
+      pausedForSheet.current = true
       togglePause()
     }
-    setRulesOpen(true)
+    setSheet(which)
   }
-  const closeRules = () => {
-    setRulesOpen(false)
-    if (pausedForRules.current) {
-      pausedForRules.current = false
+  const closeSheet = () => {
+    setSheet(null)
+    if (pausedForSheet.current) {
+      pausedForSheet.current = false
       if (useGameStore.getState().paused) togglePause()
     }
+  }
+  const openRules = () => openSheet('rules')
+  const openSettings = () => openSheet('settings')
+  /** From the settings sheet: close it, then ask before ending or restarting the game. */
+  const fromSettings = (action: () => void) => () => {
+    closeSheet()
+    action()
   }
 
   const confirmPending = () => {
@@ -146,14 +169,14 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         if (!gameOver && canPause) togglePause()
       },
       n: requestNew,
-      s: requestSettings,
+      s: openSettings,
       l: () => setLogOpen(!logOpen),
       '?': openRules,
     },
-    !pending && !offerEnd && !gameOver && !rulesOpen,
+    !pending && !offerEnd && !gameOver && !sheet,
   )
-  // With the win overlay up, only new game and settings make sense.
-  useShortcuts({ n: doNew, s: doSettings }, gameOver && !busy && !rulesOpen)
+  // With the win overlay up, only new game and back to setup make sense.
+  useShortcuts({ n: doNew, s: doSettings }, gameOver && !busy && !sheet)
 
   const lastEvents = game.events
   const oops = lastEvents.find((e) => e.type === 'noMoves')
@@ -167,13 +190,21 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
     prompt = `Oops! ${roller} rolled a ${who.lastRoll} with no legal move.${oops.rollAgain ? ' A 6 rolls again.' : ''}`
   } else if (busy) prompt = 'Moving...'
   else if (celebration) prompt = celebration.name === 'You' ? 'You got all your marbles home!' : `${celebration.name} got all their marbles home!`
+  else if (helperTurn && helperChoices.length > 0)
+    prompt = `${current.name === 'You' ? 'Your' : `${current.name}, your`} marbles are all home. Roll for a teammate, or pass.`
+  else if (helperTurn) prompt = `${current.name} has finished and is choosing who to roll for...`
   else if (!humanTurn) prompt = `${current.name} is playing...`
   else if (game.phase === 'roll' && autoRoll) prompt = `${turnOf(current.name)} Rolling...`
   else if (game.phase === 'roll') prompt = `${turnOf(current.name)} ${IS_TOUCH ? 'Tap the die to roll.' : 'Press Space or tap the die to roll.'}`
+  else if (mover.color !== current.color && game.phase === 'move' && selected === null)
+    prompt = `Rolled ${game.dice} for ${mover.name}. ${IS_TOUCH ? 'Tap' : 'Pick'} one of ${mover.name}'s glowing marbles.`
+  else if (selected !== null && showPad)
+    prompt = `Rolled ${game.dice}. Where does marble ${selected + 1} go? Tap a number on the board or below.`
   else if (selected !== null)
     prompt = IS_TOUCH
       ? `Rolled ${game.dice}. Tap a numbered hole for marble ${selected + 1}, or tap the marble again to go back.`
       : `Rolled ${game.dice}. Pick where marble ${selected + 1} goes: press 1–${destinations.length}, or Esc to go back.`
+  else if (showPad) prompt = `Rolled ${game.dice}. Tap a glowing marble, or its number below.`
   else prompt = IS_TOUCH ? `Rolled ${game.dice}. Tap a glowing marble.` : `Rolled ${game.dice}. Pick a marble: press 1–4 or click a glowing one.`
 
   return (
@@ -193,18 +224,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
             <ToolButton icon={paused ? 'play' : 'pause'} label={paused ? 'Resume' : 'Pause'} onClick={togglePause} disabled={gameOver} pressed={paused} shortcut="P" shortcutLabel="P" />
           )}
           <ToolButton icon="book" label="Rules" onClick={openRules} shortcut="?" shortcutLabel="?" />
-          <SettingSwitch setting="autoRoll" icon="dice" label="Auto roll" title="Roll the die automatically on your turn. You still choose every real move." />
-          <SettingSwitch setting="autoMove" icon="forward" label="Auto move" title="Play your move automatically when the roll leaves no real choice." />
-          <SettingSwitch setting="sound" icon="speaker" label="Sound" />
-          <ThemeSwitch />
-          <ToolButton
-            icon="gear"
-            label={role === 'host' ? 'End online game' : isGuest ? 'Leave game' : 'Settings'}
-            onClick={requestSettings}
-            shortcut="S"
-            shortcutLabel="S"
-          />
-          {!isGuest && <ToolButton icon="restart" label="New game" onClick={requestNew} disabled={!configs} shortcut="N" shortcutLabel="N" />}
+          <ToolButton icon="gear" label="Settings" onClick={openSettings} shortcut="S" shortcutLabel="S" />
         </div>
       </header>
 
@@ -237,7 +257,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
       <div className="game-body">
         <ol className="panels" aria-label="Players in turn order">
           {shownPlayers.map((p) => (
-            <PlayerPanel key={p.color} player={p} active={!gameOver && p.color === current.color} />
+            <PlayerPanel key={p.color} player={p} active={!gameOver && p.color === current.color} playingFor={!gameOver && p.color === current.color && mover.color !== p.color ? mover.name : null} />
           ))}
         </ol>
 
@@ -245,15 +265,42 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           <Board
             players={shownPlayers}
             bottom={bottom}
-            activeColor={gameOver ? null : current.color}
+            activeColor={gameOver ? null : mover.color}
             pickable={pickable}
             selected={canPick ? selected : null}
             destinations={canPick ? destinations : []}
-            showNumbers={humanTurn && !IS_TOUCH}
+            showNumbers={humanTurn && (!IS_TOUCH || (showPad && canPick))}
+            padTarget={canPick ? padTarget : null}
             lastMove={lastMove}
             onPickMarble={(id) => (selected === id ? cancelSelection() : pick(id))}
             onChooseMove={playMove}
           />
+          {showPad && canPick && (
+            <MovePad
+              player={mover}
+              pickable={pickable}
+              selected={selected}
+              destinations={destinations}
+              movesFor={movesFor}
+              onPickMarble={(id) => {
+                setPadTarget(null)
+                pick(id)
+              }}
+              onChooseMove={(move) => {
+                setPadTarget(null)
+                playMove(move)
+              }}
+              onBack={cancelSelection}
+              onPreview={setPadTarget}
+            />
+          )}
+          {showPad && canRoll && !autoRoll && (
+            <div className="move-pad">
+              <button type="button" className="pad-button pad-roll primary" onClick={roll}>
+                <Icon name="dice" /> Roll
+              </button>
+            </div>
+          )}
           {celebration && <FinishBanner key={celebration.color} {...celebration} />}
           {paused && (
             <div className="pause-veil" role="status">
@@ -279,6 +326,17 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
             <p className="prompt" aria-live="polite">
               {prompt}
             </p>
+            <TeamTurn
+              game={game}
+              choices={busy ? [] : helperChoices}
+              isMine={isMine}
+              online={online}
+              nudges={nudges}
+              disabled={busy || paused}
+              onRollFor={rollFor}
+              onPass={pass}
+              onNudge={sendNudge}
+            />
             {shownHint && (
               <p className="hint" role="status">
                 {shownHint}
@@ -300,7 +358,24 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         {latestLog}
       </p>
 
-      <RulesSheet open={rulesOpen} onClose={closeRules} />
+      <RulesSheet open={sheet === 'rules'} onClose={closeSheet} />
+      <SettingsSheet
+        open={sheet === 'settings'}
+        onClose={closeSheet}
+        gameSection={
+          <div className="settings-game">
+            <p className="setting-hint">These end or restart the game, so they always ask first.</p>
+            {!isGuest && (
+              <button type="button" onClick={fromSettings(requestNew)} disabled={!configs && role !== 'host'}>
+                <Icon name="restart" /> New game
+              </button>
+            )}
+            <button type="button" className="danger-outline" onClick={fromSettings(requestSettings)}>
+              <Icon name={online ? 'close' : 'list'} /> {role === 'host' ? 'End online game' : isGuest ? 'Leave game' : 'Change setup'}
+            </button>
+          </div>
+        }
+      />
 
       {pending && (
         <ConfirmDialog
@@ -320,7 +395,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
               : isGuest
                 ? 'Leave'
                 : pending === 'settings'
-                  ? 'Abandon and open settings'
+                  ? 'Abandon and change setup'
                   : 'Abandon and start new'
           }
           cancelLabel="Keep playing"
@@ -345,6 +420,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         <WinOverlay
           early={game.events.some((e) => e.type === 'gameOver' && e.early)}
           winners={game.winners}
+          teams={teams ? teamStandings(game) : undefined}
           time={formatClock(elapsed)}
           names={Object.fromEntries(game.players.map((p) => [p.color, p.name]))}
           onNewGame={isGuest || !configs ? undefined : doNew}

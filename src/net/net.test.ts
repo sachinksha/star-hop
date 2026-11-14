@@ -5,7 +5,7 @@ import { GuestSession, type GuestHandlers, type SeatStore } from './guestSession
 import { HostSession } from './hostSession'
 import { INVITE_TTL_MS, formatRemaining, inviteUrl, parseInvite } from './invite'
 import { MemoryNetwork } from './memoryNetwork'
-import { parseGuestMessage, sanitizeName, type Snapshot } from './protocol'
+import { parseGuestMessage, sanitizeName, type Snapshot, type TeamNudge } from './protocol'
 
 /** Lets queued microtasks and zero-delay timers run. */
 const flush = () => new Promise((r) => setTimeout(r, 0))
@@ -23,11 +23,12 @@ function memoryStore(): SeatStore {
 }
 
 function recorder() {
-  const log = { syncs: [] as Snapshot[], actions: [] as { action: GameAction; seq: number }[], paused: [] as boolean[] }
+  const log = { syncs: [] as Snapshot[], actions: [] as { action: GameAction; seq: number }[], paused: [] as boolean[], nudges: [] as TeamNudge[][] }
   const handlers: GuestHandlers = {
     onSync: (s) => log.syncs.push(s),
     onAction: (action, seq) => log.actions.push({ action, seq }),
     onPaused: (p) => log.paused.push(p),
+    onNudges: (n) => log.nudges.push(n),
   }
   return { log, handlers }
 }
@@ -249,5 +250,48 @@ describe('playing', () => {
     expect(a.session.getView().status).toBe('ended')
     expect(b.session.getView().status).toBe('ended')
     expect(host.getView().ended).toBe(true)
+  })
+})
+
+describe('team play over the network', () => {
+  it('parses team intents and nudges strictly', () => {
+    expect(parseGuestMessage({ t: 'intent', seq: 4, action: 'roll', for: 'green' })).toEqual({ t: 'intent', seq: 4, action: 'roll', for: 'green' })
+    expect(parseGuestMessage({ t: 'intent', seq: 4, action: 'roll', for: 'pink' })).toBeNull()
+    expect(parseGuestMessage({ t: 'intent', seq: 4, action: 'pass', extra: 1 })).toEqual({ t: 'intent', seq: 4, action: 'pass' })
+    expect(parseGuestMessage({ t: 'nudge', seq: 2, nudge: { kind: 'rollFor', color: 'blue' } })).toEqual({
+      t: 'nudge',
+      seq: 2,
+      nudge: { kind: 'rollFor', color: 'blue' },
+    })
+    expect(parseGuestMessage({ t: 'nudge', seq: 2, nudge: { kind: 'pass', color: 'x' } })).toEqual({ t: 'nudge', seq: 2, nudge: { kind: 'pass' } })
+    expect(parseGuestMessage({ t: 'nudge', seq: 2, nudge: { kind: 'rollFor', color: 'pink' } })).toBeNull()
+    expect(parseGuestMessage({ t: 'nudge', seq: 2, nudge: 'pass' })).toBeNull()
+  })
+
+  it('keeps teams from the lobby to the game, and shares nudges with one team only', async () => {
+    const teamSeats: PlayerConfig[] = [
+      { color: 'red', kind: 'human', name: 'Host', team: 0 },
+      { color: 'orange', kind: 'human', remote: true, team: 1 },
+      { color: 'green', kind: 'human', remote: true, team: 0 },
+      { color: 'blue', kind: 'bot', team: 1 },
+    ]
+    const { host, guest } = await setup(teamSeats)
+    const ana = await guest('Ana') // orange, team 1
+    const bo = await guest('Bo') // green, team 0
+    expect(host.getView().seats.map((s) => s.team)).toEqual([0, 1, 0, 1])
+    const configs = host.gameConfigs()
+    expect(configs.map((c) => c.team)).toEqual([0, 1, 0, 1])
+    expect(createGame(configs, () => 0).players.map((p) => p.team)).toEqual([0, 1, 0, 1])
+
+    const received: unknown[] = []
+    host.onNudge = (color, seq, nudge) => received.push({ color, seq, nudge })
+    bo.session.sendNudge(5, { kind: 'pass' })
+    await flush()
+    expect(received).toEqual([{ color: 'green', seq: 5, nudge: { kind: 'pass' } }])
+
+    host.shareNudges(['red', 'green'], [{ from: 'green', seq: 5, nudge: { kind: 'pass' } }])
+    await flush()
+    expect(bo.log.nudges).toEqual([[{ from: 'green', seq: 5, nudge: { kind: 'pass' } }]])
+    expect(ana.log.nudges).toHaveLength(0)
   })
 })

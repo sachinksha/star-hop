@@ -15,15 +15,35 @@ npm run build   # typecheck and production build
 
 ## How to play
 
-Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human or Bot. Your arm is drawn at the bottom of the board.
+Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human or Bot. With 4 or 6 players you can also play in **teams** (see below). Your arm is drawn at the bottom of the board.
 
-- **Roll:** with Auto roll on (the default) your die rolls by itself. Otherwise press Space or tap the die.
-- **Pick a marble:** marbles you can move glow. Tap one, or press its number (1 to 4). If it can only go one place, it moves straight away. With Auto move on, a roll that leaves no real choice plays itself.
+- **Roll:** press Space or tap the die. With Auto roll on (off by default; turn it on in Settings) your die rolls by itself.
+- **Pick a marble:** marbles you can move glow. Tap one, or press its number (1 to 4). If it can only go one place, it moves straight away. With Auto move on (off by default), a roll that leaves no real choice plays itself.
 - **Pick where it goes:** when a marble has several destinations (on a star, near the centre), each gets a numbered badge on the board, 1 being the one closest to home and the centre always last. Tap a badge or press its number. Hover or focus a badge to see the path; Esc goes back.
 - **Rules:** the Rules button (on setup, the join screen and the toolbar) or **?** opens a plain-language summary. On phones it is a bottom sheet you can swipe down to close. Reading the rules pauses a local game.
-- Undo/redo (← →), pause (P), log (L), new game (N) and settings (S) are on the toolbar and the keyboard.
+- **On a phone:** big numbered **move buttons** appear under the board, matching the numbers on the marbles and destination circles. Press one to see which piece it means; lift to choose, or slide off to cancel. Taps that miss a small piece go to the nearest piece you can use, unless two are about equally close. Turn the buttons on or off in Settings.
+- Undo/redo (← →), pause (P), rules (?), log (L), new game (N) and settings (S) work from the keyboard. The toolbar keeps just undo, redo, pause, rules and settings.
 - Refreshing the page keeps your game: it comes back paused.
-- **Theme:** the theme button (on setup and in the toolbar) cycles System, Light and Dark. System follows your device and is the default; your choice is remembered.
+
+### Settings
+
+The gear button (on setup, the join screen and in the game) opens Settings. Opening it pauses a local game.
+
+- **Playing:** Auto roll, Auto move, move buttons (on touch screens, always, or never).
+- **Sound:** on or off, volume, and a **sound style**: Classic, Tabla, Bansuri (flute), Sitar or Santoor. Each style has a play button for a sample, and "Try each sound" plays every game sound in the chosen style.
+- **Look:** System, Light or Dark theme.
+- **This game** (in a game only, kept apart at the bottom): New game, and Change setup, End online game or Leave. These always ask before doing anything.
+
+Everything except the game actions is remembered between visits.
+
+### Teams
+
+With 4 players you can play as 2 teams of 2; with 6, as 2 teams of 3 or 3 teams of 2. Teammates sit alternately round the board, so turns alternate between teams.
+
+- Teammates never bump each other.
+- When your marbles are all home you keep your turns: before rolling, choose which unfinished teammate the roll is for (or **pass**), then move their marble.
+- Online, teammates can **suggest** who you should roll for, or that you pass. Suggestions show on your buttons like votes; only your team sees them, and you decide.
+- The first team with everyone home wins.
 
 ## Online play
 
@@ -38,6 +58,7 @@ How it works:
 - **Browser to browser.** Moves travel over an encrypted WebRTC data channel. A free public PeerJS server only introduces the browsers, and a TURN relay (from `/api/turn`) helps when networks cannot connect directly, such as a phone on mobile data.
 - **The host's browser runs the game.** Guests send requests ("roll", "move marble 2 to this hole"); the host checks each against the rules and the turn, rolls the die, and sends the result to everyone. Guests cannot fake dice or move out of turn.
 - **Dropped connections.** A guest who refreshes or loses connection rejoins the same seat automatically (even after the link expired). The host sees "lost connection" with **Let a bot play**; when a bot takes over, the seat is renamed "Bot N" and everyone gets a notice.
+- **Team suggestions.** Before a finished teammate rolls, the others on the team can tap "Roll for me", "Roll for …" or "Pass this one". The host checks each suggestion and forwards it to that team only. They are advice, and they expire as soon as anything happens on the board.
 - **Host controls.** Only the host can pause, start a new game with the same people, or end the online game. Undo is off online, and online games never pause by themselves.
 - **Limits.** If the host closes their tab, the game ends. The host could in principle cheat, so play with people you know.
 
@@ -73,8 +94,11 @@ Rules marked *house rule* are where the traditional rules are silent or vague. T
 | R14 | The first player is picked at random (*house rule*, instead of a roll-off). Play passes clockwise |
 | R15 | Play continues until everyone is ranked (*house rule*). When only bots are left you can end the game early, and unfinished players are ranked by progress |
 | R16 | A player who finishes on a 6 does not roll again: with all 4 marbles home, every home hole is full and nothing can move (*house rule*) |
-
-Team play is not supported yet (planned).
+| R17 | **Teams** (optional): 4 players as 2 pairs, or 6 players as 2 teams of 3 or 3 pairs. Seats alternate between teams round the board |
+| R18 | Teammates can't bump each other: you may jump a teammate's marble but not land on it, including on your start hole |
+| R19 | A player with all marbles home keeps taking turns while a teammate is still playing. Before rolling they choose which unfinished teammate the roll is for, and move that teammate's marble. A 6 rolls again, choosing again. Comeback dice follow the teammate whose marbles move |
+| R20 | On such a turn the player may **pass** instead of rolling (*house rule*). Players who are still racing can't pass |
+| R21 | A team finishes when all its members have. Play continues until at most one team is left, which is ranked last; ending early ranks teams by their last member's place |
 
 **Online:** undo is off, and games never pause by themselves (one player switching tabs would stop everyone).
 
@@ -87,6 +111,8 @@ Each bot gets a random persona every game (balanced, hunter, guardian or racer),
 - **attack**: how many opponents the moved marble could bump next turn.
 
 Reach is worked out with the real move generator for every die value, so star hops, the centre exit and bumps on start holes all count.
+
+In team play bots treat teammates as friends (no danger from them). A finished bot rolls for the teammate whose best move is worth most on average over the six die faces. Bots never pass.
 
 | Persona | Style |
 | --- | --- |
@@ -107,11 +133,13 @@ The design is the same as the Ludo game's (see `LEARNINGS.md` in that project):
   - [rules.ts](src/game/rules.ts): every legal move with its path, including blocking, hops and the centre.
   - [engine.ts](src/game/engine.ts): turns, bumping, finishing, comeback dice, ending early, bot takeover.
   - [bot.ts](src/game/bot.ts): personas and move scoring.
+  - [teams.ts](src/game/teams.ts): team helpers shared by the engine, bots and UI.
+- **Sound** in [src/audio/](src/audio/): every theme is synthesised with Web Audio (no audio files). [synth.ts](src/audio/synth.ts) has the building blocks (Karplus-Strong strings, tabla strokes, a breathy flute); [themes.ts](src/audio/themes.ts) is where to tweak a theme.
 - A move is chosen as **marble + destination**, because a marble on a star or in the centre can have several destinations. Legal moves are ordered with the destination closest to home first and the centre last; the UI numbers destinations in this order.
 
 ## Learning guide
 
-[docs/](docs/README.md) is a study guide that uses this codebase to prepare for senior and principal frontend interviews. It builds on the Ludo game's guide and covers what is new here: graph-shaped domain modelling, SVG geometry, the native-`<dialog>` bottom sheet, a mobile debugging case study, theming, persistence, probability in the bots, React patterns and modern tooling.
+[docs/](docs/README.md) is a study guide that uses this codebase to prepare for senior and principal frontend interviews. It builds on the Ludo game's guide and covers what is new here: graph-shaped domain modelling, SVG geometry, the native-`<dialog>` bottom sheet, a mobile debugging case study, theming, persistence, probability in the bots, React patterns, modern tooling, touch-target design, team play with collaborative online decisions, sound synthesis and settings design.
 
 ## Licence
 

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { playSound } from '../audio/sfx'
 import { isStar, sameSpot } from '../game/board'
-import { chooseBotMove, createBotProfile } from '../game/bot'
+import { chooseBotMove, chooseHelperTarget, createBotProfile } from '../game/bot'
 import { rollFor, secureRandom, type Rng } from '../game/engine'
 import { undoIndex } from '../game/history'
 import { autoMove as autoMoveFor } from '../game/rules'
+import { helperTargets, isHelperTurn, moverOf, takesTurns, teamLabel } from '../game/teams'
 import type { Color, GameAction, GameEvent, GameState, Move, Player, Spot } from '../game/types'
 import type { Intent } from '../net/protocol'
 import { useGameStore } from '../store/gameStore'
@@ -47,6 +48,8 @@ export interface Celebration {
   color: Color
   name: string
   rank: number
+  /** Set when a whole team just finished: the banner names the team. */
+  team?: number
 }
 
 /** What happened when a marble was picked. */
@@ -96,6 +99,13 @@ export interface StarHopController {
   role: Role
   /** The seat to play is controlled from this device. */
   humanTurn: boolean
+  /** The player whose marbles move this turn: the roller, or the teammate they rolled for. */
+  mover: Player
+  /**
+   * Team play: a finished player on this device must choose which teammate to
+   * roll for (or pass). Lists the choices; empty otherwise.
+   */
+  helperChoices: Player[]
   /** True for seats played from this device. */
   isMine: (color: Color) => boolean
 
@@ -134,6 +144,10 @@ export interface StarHopController {
   /** Pausing is possible from this device (not for online guests). */
   canPause: boolean
   roll: () => void
+  /** Team play: a finished player rolls for this teammate. */
+  rollFor: (color: Color) => void
+  /** Team play: a finished player skips this roll. */
+  pass: () => void
   undo: () => void
   redo: () => void
   togglePause: () => void
@@ -226,7 +240,12 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     const finish = next.events.find((e) => e.type === 'finish')
     if (finish?.type === 'finish' && next.phase !== 'gameOver') {
       const player = next.players.find((p) => p.color === finish.color)!
-      setCelebration({ color: finish.color, name: player.name, rank: finish.rank })
+      const teamDone = next.events.find((e) => e.type === 'teamFinish')
+      setCelebration(
+        teamDone?.type === 'teamFinish'
+          ? { color: finish.color, name: teamLabel(teamDone.team), rank: teamDone.rank, team: teamDone.team }
+          : { color: finish.color, name: player.name, rank: finish.rank },
+      )
       later(() => {
         setCelebration(null)
         setBusyBoth(false)
@@ -265,7 +284,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
           setBusyBoth(false)
           return false
         }
-        const color = g.players[g.currentIndex]!.color
+        const color = moverOf(g).color
         let at = 0
         let prev = move.from
         for (const spot of move.path) {
@@ -300,13 +319,31 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     [animate],
   )
 
-  /** Rolls for whoever's turn it is (not used by guests). */
-  const performRoll = useCallback(() => {
-    const { game: g, paused: isPaused, settings } = useGameStore.getState()
-    if (busyRef.current || isPaused || !g || g.phase !== 'roll') return
-    const seat = g.players[g.currentIndex]!
-    submit({ type: 'roll', value: rollFor(g, rng, settings.comebackDice), actor: seat.kind })
-  }, [rng, submit])
+  /**
+   * Rolls for whoever's turn it is (not used by guests). In team play a
+   * finished player names the teammate `forColor` the roll is for; a roll the
+   * engine would reject (no teammate named, or the wrong one) is not made.
+   */
+  const performRoll = useCallback(
+    (forColor?: Color) => {
+      const { game: g, paused: isPaused, settings } = useGameStore.getState()
+      if (busyRef.current || isPaused || !g || g.phase !== 'roll') return
+      const seat = g.players[g.currentIndex]!
+      const helping = isHelperTurn(g)
+      if (helping !== (forColor !== undefined && forColor !== seat.color)) return
+      if (helping && !helperTargets(g).some((p) => p.color === forColor)) return
+      const value = rollFor(g, rng, settings.comebackDice, helping ? forColor : undefined)
+      submit(helping ? { type: 'roll', value, actor: seat.kind, for: forColor } : { type: 'roll', value, actor: seat.kind })
+    },
+    [rng, submit],
+  )
+
+  /** A finished player skips their roll (not used by guests). */
+  const performPass = useCallback(() => {
+    const { game: g, paused: isPaused } = useGameStore.getState()
+    if (busyRef.current || isPaused || !g || !isHelperTurn(g)) return
+    submit({ type: 'pass', actor: g.players[g.currentIndex]!.kind })
+  }, [submit])
 
   /** Plays a legal move for whoever's turn it is (not used by guests). */
   const performMove = useCallback(
@@ -389,17 +426,37 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
 
   const cancelSelection = useCallback(() => setSelection(null), [])
 
-  /** UI: roll for this device's seat. */
+  /** UI: roll for this device's seat. A finished player uses rollFor instead. */
   const roll = useCallback(() => {
     const g = useGameStore.getState().game
-    if (!g || g.phase !== 'roll' || !isMine(g.players[g.currentIndex]!.color)) return
+    if (!g || g.phase !== 'roll' || !isMine(g.players[g.currentIndex]!.color) || isHelperTurn(g)) return
     if (role === 'guest') sendIntent({ action: 'roll' })
     else performRoll()
   }, [isMine, role, sendIntent, performRoll])
 
-  // Every human has finished while bots play on: offer to end. Guests never decide this.
+  /** UI: a finished player on this device rolls for a teammate. */
+  const rollForTeammate = useCallback(
+    (color: Color) => {
+      const g = useGameStore.getState().game
+      if (!g || !isHelperTurn(g) || !isMine(g.players[g.currentIndex]!.color)) return
+      if (role === 'guest') sendIntent({ action: 'roll', for: color })
+      else performRoll(color)
+    },
+    [isMine, role, sendIntent, performRoll],
+  )
+
+  /** UI: a finished player on this device passes. */
+  const pass = useCallback(() => {
+    const g = useGameStore.getState().game
+    if (!g || !isHelperTurn(g) || !isMine(g.players[g.currentIndex]!.color)) return
+    if (role === 'guest') sendIntent({ action: 'pass' })
+    else performPass()
+  }, [isMine, role, sendIntent, performPass])
+
+  // Every human is out of the game (finished, and in team play their whole team
+  // too) while bots play on: offer to end. Guests never decide this.
   const humans = game.players.filter((p) => p.kind === 'human')
-  const humansDone = humans.length > 0 && humans.every((p) => p.finishRank !== null)
+  const humansDone = humans.length > 0 && humans.every((p) => !takesTurns(game.players, p))
   const offerEnd = role !== 'guest' && humansDone && !endDeclined && !busy && game.phase !== 'gameOver'
 
   /** Guest: play the host's actions in order, one at a time. */
@@ -422,11 +479,12 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     if (role === 'guest') {
       // Guests automate only their own seat, by sending intents; the host does everything else.
       if (!isMine(seat.color) || inbox.length > 0) return
-      if (game.phase === 'roll' && autoRoll) {
+      // A finished player's roll for the team is always a real decision: never automatic.
+      if (game.phase === 'roll' && autoRoll && !isHelperTurn(game)) {
         const id = window.setTimeout(() => sendIntent({ action: 'roll' }), TIMING.AUTO_ROLL_MS)
         return () => window.clearTimeout(id)
       }
-      const auto = game.phase === 'move' && autoMove ? autoMoveFor(seat.color, game.legalMoves) : null
+      const auto = game.phase === 'move' && autoMove ? autoMoveFor(moverOf(game).color, game.legalMoves) : null
       if (auto) {
         const id = window.setTimeout(() => sendIntent({ action: 'move', marbleId: auto.marbleId, to: auto.to }), TIMING.AUTO_MOVE_MS)
         return () => window.clearTimeout(id)
@@ -442,7 +500,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
         clearInbox() // anything else is stale
         if (intent?.kind !== 'intent') return
         const g = useGameStore.getState().game!
-        if (intent.intent.action === 'roll' && g.phase === 'roll') performRoll()
+        if (intent.intent.action === 'roll' && g.phase === 'roll') performRoll(intent.intent.for)
+        if (intent.intent.action === 'pass') performPass()
         if (intent.intent.action === 'move' && g.phase === 'move') {
           // Only a legal move for that marble and hole is played; anything else is ignored.
           const move = findMove(g, intent.intent.marbleId, intent.intent.to)
@@ -453,15 +512,24 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     }
 
     if (game.phase === 'roll') {
+      // A finished bot picks the teammate it helps most. A finished human always decides.
+      if (isHelperTurn(game)) {
+        if (seat.kind !== 'bot') return
+        const id = window.setTimeout(() => {
+          const target = chooseHelperTarget(useGameStore.getState().game!)
+          if (target) performRoll(target)
+        }, TIMING.BOT_ROLL_MS)
+        return () => window.clearTimeout(id)
+      }
       if (seat.kind === 'human' && (seat.remote || !autoRoll)) return
-      const id = window.setTimeout(performRoll, seat.kind === 'bot' ? TIMING.BOT_ROLL_MS : TIMING.AUTO_ROLL_MS)
+      const id = window.setTimeout(() => performRoll(), seat.kind === 'bot' ? TIMING.BOT_ROLL_MS : TIMING.AUTO_ROLL_MS)
       return () => window.clearTimeout(id)
     }
 
     // Move phase. When the roll leaves no real decision, play it without a
     // click: always for bots, and for this device's humans when auto move is on.
     // A remote player's own device decides that for them, so the host waits.
-    const auto = seat.kind === 'bot' || (autoMove && isMine(seat.color)) ? autoMoveFor(seat.color, game.legalMoves) : null
+    const auto = seat.kind === 'bot' || (autoMove && isMine(seat.color)) ? autoMoveFor(moverOf(game).color, game.legalMoves) : null
     if (auto) {
       const id = window.setTimeout(() => performMove(auto), TIMING.AUTO_MOVE_MS)
       return () => window.clearTimeout(id)
@@ -474,7 +542,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       }, TIMING.BOT_MOVE_MS)
       return () => window.clearTimeout(id)
     }
-  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, performMove, sendIntent, rng])
+  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, performMove, performPass, sendIntent, rng])
 
   const endEarly = useCallback(() => {
     if (busyRef.current || role === 'guest') return
@@ -546,6 +614,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     paused,
     role,
     humanTurn: isMine(seat.color) && game.phase !== 'gameOver',
+    mover: moverOf(game),
+    helperChoices: isMine(seat.color) && !paused ? helperTargets(game) : [],
     isMine,
     selected,
     destinations,
@@ -565,6 +635,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     canRedo: local && !busy && !paused && redoStack.length > 0,
     canPause: role !== 'guest',
     roll,
+    rollFor: rollForTeammate,
+    pass,
     undo,
     redo,
     togglePause,

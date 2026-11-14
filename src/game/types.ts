@@ -79,7 +79,11 @@ export interface Player {
   remote: boolean
   /** Playing style for bots, chosen at random each game. Null for humans. */
   bot: BotProfile | null
-  /** Team number for team play. Always null until team play exists. */
+  /**
+   * Team number (0, 1, 2) in team play, or null when everyone plays alone.
+   * Teammates can't bump each other, and a finished player keeps taking turns
+   * to roll for an unfinished teammate.
+   */
   team: number | null
   marbles: Marble[]
   finishRank: number | null
@@ -122,8 +126,14 @@ export type Phase = 'roll' | 'move' | 'gameOver'
 
 export interface GameState {
   players: Player[]
-  /** Index into players of the seat whose turn it is. */
+  /** Index into players of the seat whose turn it is (the one who rolls). */
   currentIndex: number
+  /**
+   * Team play: the teammate whose marbles this turn's roll moves, when a
+   * finished player rolls for them. Null when players move their own marbles.
+   * Set by the roll and cleared when the turn moves on.
+   */
+  playingFor: Color | null
   /** Die value for the move being chosen (null when not waiting on a move). */
   dice: number | null
   phase: Phase
@@ -142,13 +152,19 @@ export interface GameState {
 }
 
 export type GameEvent =
-  | { type: 'roll'; value: number; color: Color }
-  | { type: 'move'; move: Move; color: Color }
+  /** `for` names the teammate the roll was for, when a finished player rolled for them. */
+  | { type: 'roll'; value: number; color: Color; for?: Color }
+  /** `color` owns the marble that moved; `by` is the roller when that was a teammate. */
+  | { type: 'move'; move: Move; color: Color; by?: Color }
   | { type: 'bump'; color: Color; victim: Color }
   /** The roll allowed no move. `rollAgain` is true after a 6 (R6). */
   | { type: 'noMoves'; color: Color; rollAgain: boolean }
   | { type: 'finish'; color: Color; rank: number }
   | { type: 'gameOver'; winners: Color[]; early?: boolean }
+  /** A finished player chose not to roll for their team this turn. */
+  | { type: 'pass'; color: Color }
+  /** Every member of a team has finished. `rank` is the team's place. */
+  | { type: 'teamFinish'; team: number; rank: number }
   /** A bot took a seat. Both names are kept so every screen can explain the change. */
   | { type: 'takeover'; color: Color; from: string; to: string }
 
@@ -158,7 +174,13 @@ export type GameEvent =
  * the legal moves; anything else is ignored.
  */
 export type GameAction =
-  | { type: 'roll'; value: number; actor: PlayerKind }
+  /**
+   * `for` is set on a finished player's roll in team play: the unfinished
+   * teammate whose marbles the roll moves. It is chosen before rolling.
+   */
+  | { type: 'roll'; value: number; actor: PlayerKind; for?: Color }
+  /** A finished player in team play skips their roll. */
+  | { type: 'pass'; actor: PlayerKind }
   | { type: 'move'; marbleId: number; to: Spot; actor: PlayerKind }
   /** Ends the game early, ranking unfinished seats by progress. */
   | { type: 'end'; actor: PlayerKind }
@@ -168,7 +190,7 @@ export type GameAction =
 /**
  * A seat chosen on the setup screen. `name` is an optional display label for
  * humans. `remote` marks a human seat played from another device (online).
- * `team` is reserved for team play.
+ * `team` groups seats into teams (0, 1, 2); leave it out for solo play.
  */
 export type PlayerConfig = {
   color: Color

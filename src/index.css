@@ -224,12 +224,13 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .dice-card { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 0.9rem; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-top: 5px solid var(--arm); box-shadow: var(--shadow); text-align: center; }
 .prompt { margin: 0; min-height: 2.8em; font-weight: 500; }
 .hint { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
-.die { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 68px; height: 68px; padding: 9px; border-radius: 14px; background: #fff; border: 2px solid var(--arm); box-shadow: var(--shadow); }
+.die { display: grid; grid-template-columns: repeat(3, 1fr); align-content: space-between; gap: 4px; width: 68px; height: 68px; padding: 9px; border-radius: 14px; background: #fff; border: 2px solid var(--arm); box-shadow: var(--shadow); }
 .die-clickable { animation: nudge 1.4s ease-in-out infinite; }
 .die:disabled { opacity: 1; cursor: default; }
 .die-blank .pip-on { opacity: 0.25; }
 .die-rolling { animation: tumble 0.3s linear infinite; }
-.pip { border-radius: 50%; }
+/* aspect-ratio, not grid rows, sizes the pips: Chromium does not resolve 1fr rows when a <button> is the grid. */
+.pip { border-radius: 50%; aspect-ratio: 1; align-self: center; }
 .pip-on { background: #1f2430; }
 @keyframes tumble { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 @keyframes nudge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
@@ -240,7 +241,8 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
   .table { order: 2; }
   .panels { order: 3; }
   .side-card { order: 4; }
-  .dice-card { flex-direction: row; text-align: left; padding: 0.6rem; }
+  .dice-card { flex-direction: row; flex-wrap: wrap; text-align: left; padding: 0.6rem; }
+  .dice-card .prompt { flex: 1; min-width: 0; }
   .prompt { min-height: 0; }
   .die { width: 56px; height: 56px; padding: 7px; flex: none; }
 }
@@ -354,7 +356,10 @@ kbd { font: inherit; font-size: 0.8rem; padding: 0.05rem 0.35rem; border-radius:
   max-height: min(82dvh, 760px);
   border-radius: 16px;
   box-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+  /* clip, not just hidden: an overflow: hidden box can still be scrolled by script or by focus
+     (scrollIntoView), which slid the header out of view. clip forbids scrolling entirely. */
   overflow: hidden;
+  overflow: clip;
   transform: translateY(var(--drag-y, 0px));
 }
 /* Only when open: a closed dialog must keep the browser's display: none. */
@@ -413,6 +418,78 @@ html:has(.sheet[open]) { overflow: hidden; }
 /* Positioned, not a flex item: flex would split the sentence's text and <b> runs into separate boxes. */
 .rules-steps li::before { content: counter(step); position: absolute; left: 0.55rem; top: 0.45rem; display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: var(--star); color: #1f2430; font-weight: 700; font-size: 0.85rem; }
 .rules-tag { font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); }
+
+/* ---------- Settings ---------- */
+.settings section { padding: 0.85rem 0; border-bottom: 1px solid var(--line); display: grid; gap: 0.7rem; }
+.settings section:last-child { border-bottom: none; }
+.settings h3 { margin: 0; font-size: 1rem; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.setting-fieldset { flex-wrap: wrap; border: none; margin: 0; padding: 0; }
+.setting-fieldset legend { float: left; margin: 0 0 0.4rem; padding: 0; }
+.setting-text { display: grid; gap: 0.1rem; min-width: 0; }
+.setting-label { font-weight: 600; }
+.setting-hint { display: block; color: var(--ink-soft); font-size: 0.86rem; }
+.setting-note { margin: -0.4rem 0 0; }
+/* 44px tall touch target around a small track. */
+.setting-switch { flex: none; display: inline-grid; place-items: center; min-width: 52px; min-height: 44px; padding: 0; border: none; background: transparent; }
+.setting-switch .switch-track { width: 42px; height: 24px; }
+.setting-switch .switch-knob { width: 20px; height: 20px; }
+.setting-switch .switch-on .switch-knob { transform: translateX(18px); }
+.setting-range { flex: 1; max-width: 240px; accent-color: var(--accent); min-height: 44px; }
+.segmented { clear: both; display: flex; width: 100%; padding: 3px; gap: 3px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+/* position: relative keeps the hidden radio inside the sheet's scrolling body. Without it the
+   radio's containing block was the <dialog>, and focusing it scrolled the whole dialog. */
+.segment { position: relative; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 40px; padding: 0.3rem 0.5rem; border-radius: 9px; cursor: pointer; font-size: 0.92rem; text-align: center; }
+.segment input { position: absolute; opacity: 0; pointer-events: none; }
+.segment:has(input:checked) { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.segment:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 1px; }
+.sound-themes { display: grid; gap: 0.4rem; border: none; margin: 0; padding: 0; }
+.sound-themes legend { margin: 0 0 0.4rem; padding: 0; }
+.sound-theme { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.35rem 0.35rem 0.6rem; border: 1px solid var(--line); border-radius: 12px; }
+.sound-theme-on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sound-theme-pick { flex: 1; display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; min-width: 0; padding: 0.2rem 0; }
+.sound-theme-pick input { margin-top: 0.3rem; accent-color: var(--accent); }
+.sound-play { flex: none; display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
+.sound-try { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.chip-button { padding: 0.35rem 0.75rem; min-height: 36px; border-radius: 999px; font-size: 0.9rem; }
+.chip-button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* Actions that end or restart the game sit apart, below the everyday preferences. */
+.settings-danger { margin-top: 0.4rem; padding: 0.85rem !important; border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line)) !important; border-radius: 12px; background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+.settings-game { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.settings-game .setting-hint { flex-basis: 100%; margin: 0; }
+.settings-game button { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; }
+button.danger-outline { border-color: var(--danger); color: var(--danger); font-weight: 600; }
+
+/* ---------- Move buttons (touch) ---------- */
+/* Under the board, in thumb reach. Each button is at least 48px: Material's touch target. */
+.move-pad { display: flex; gap: 0.4rem; margin-top: 0.55rem; }
+.pad-button, .pad-back { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; padding: 0.3rem 0.25rem; border-radius: 12px; border: 2px solid color-mix(in srgb, var(--arm, var(--accent)) 60%, var(--line)); background: var(--surface); line-height: 1.15; }
+.pad-button:active:not(:disabled) { background: color-mix(in srgb, var(--arm, var(--accent)) 18%, var(--surface)); transform: scale(0.97); }
+.pad-number { font-size: 1.3rem; font-weight: 800; }
+.pad-sub { font-size: 0.72rem; color: var(--ink-soft); max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.pad-back { flex: 0 0 52px; border-color: var(--line); font-size: 1.4rem; }
+.pad-bump { border-color: var(--danger); }
+.pad-tag { color: var(--danger); }
+.pad-roll { flex-direction: row; gap: 0.5rem; font-size: 1.15rem; }
+.marble-previewed .marble-halo { stroke: var(--star); stroke-width: 0.16; animation: none; }
+.badge-previewed .badge-body { fill: var(--star); }
+
+/* ---------- Teams ---------- */
+.team-chip { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; margin-left: 0.35rem; padding: 0 0.25rem; border-radius: 6px; font-size: 0.72rem; font-weight: 800; vertical-align: 0.1em; color: var(--surface); background: var(--ink); }
+.team-chip-wide { margin: 0; padding: 0 0.45rem; justify-self: center; align-self: center; }
+/* Teams differ by letter and by shape, never by colour alone (seat colours already use the hues). */
+.team-1 { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.team-2 { background: repeating-linear-gradient(135deg, var(--ink) 0 3px, var(--ink-soft) 3px 6px); }
+.team-turn { width: 100%; display: grid; gap: 0.45rem; }
+.team-turn-note { margin: 0; font-weight: 600; }
+.team-choices { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
+.team-choice, .team-pass { display: inline-flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem; min-height: 48px; padding: 0.4rem 0.8rem; border-radius: 12px; font-weight: 600; }
+.team-choice { border: 2px solid var(--arm); }
+.team-choice-nudged { box-shadow: 0 0 0 3px color-mix(in srgb, var(--star) 70%, transparent); }
+.nudge-tag { flex-basis: 100%; font-size: 0.75rem; font-weight: 500; color: var(--ink-soft); }
+.nudge-list { margin: 0; padding: 0; list-style: none; font-size: 0.85rem; color: var(--ink-soft); }
+.setup-hint-wide { flex-basis: 100%; margin: 0.3rem auto 0; max-width: 460px; }
+.standing-team { align-items: flex-start !important; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { COLORS, LOOP_LENGTH, nextWalk } from './board'
-import { HOLE_R, VIEW_HALF, armOutline, baseOutline, basePoint, homePoint, loopPoint, marblePoint, starPoint, type Point } from './layout'
+import { BOARD_HALF_X, BOARD_HALF_Y, HOLE_R, VIEW_HALF_X, VIEW_HALF_Y, armOutline, baseOutline, basePoint, homePoint, loopPoint, marblePoint, starPoint, type Point } from './layout'
 import type { Spot } from './types'
 
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -31,18 +31,23 @@ describe('board layout', () => {
     })
   }
 
-  it('fits inside the view box', () => {
-    for (const { p } of allHoles(0)) {
-      expect(Math.abs(p.x) + HOLE_R).toBeLessThan(VIEW_HALF)
-      expect(Math.abs(p.y) + HOLE_R).toBeLessThan(VIEW_HALF)
+  it('fits inside the view box, for every rotation', () => {
+    for (let bottom = 0; bottom < 6; bottom++) {
+      for (const { p } of allHoles(bottom)) {
+        expect(Math.abs(p.x) + HOLE_R).toBeLessThan(VIEW_HALF_X)
+        expect(Math.abs(p.y) + HOLE_R).toBeLessThan(VIEW_HALF_Y)
+      }
     }
   })
 
-  it('keeps the arms and base pads inside the round board', () => {
+  it('keeps the arms and base pads inside the board, with a margin', () => {
     const corners = (points: string) => points.split(' ').map((xy) => xy.split(',').map(Number) as [number, number])
-    for (let arm = 0; arm < 6; arm++) {
-      for (const [x, y] of [...corners(armOutline(arm, 0)), ...corners(baseOutline(arm, 0))]) {
-        expect(Math.hypot(x, y)).toBeLessThan(VIEW_HALF - 0.15)
+    for (let bottom = 0; bottom < 6; bottom++) {
+      for (let arm = 0; arm < 6; arm++) {
+        for (const [x, y] of [...corners(armOutline(arm, bottom)), ...corners(baseOutline(arm, bottom))]) {
+          expect(Math.abs(x)).toBeLessThan(BOARD_HALF_X - 0.15)
+          expect(Math.abs(y)).toBeLessThan(BOARD_HALF_Y - 0.15)
+        }
       }
     }
   })

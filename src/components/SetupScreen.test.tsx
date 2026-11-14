@@ -129,4 +129,27 @@ describe('SetupScreen', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Comeback dice/ }))
     expect(useGameStore.getState().settings.comebackDice).toBe(false)
   })
+
+  it('offers teams for 4 and 6 players, alternating seats round the board', () => {
+    const onStart = vi.fn()
+    render(<SetupScreen onStart={onStart} />)
+    fireEvent.click(screen.getByRole('radio', { name: '2 teams of 2' }))
+    fireEvent.click(startButton())
+    expect(onStart.mock.calls[0]![0].map((c: { color: string; team?: number }) => [c.color, c.team])).toEqual([
+      ['red', 0],
+      ['orange', 1],
+      ['green', 0],
+      ['blue', 1],
+    ])
+    fireEvent.click(screen.getByRole('radio', { name: '6' }))
+    expect(screen.getByRole('radio', { name: '3 teams of 2' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: '3 teams of 2' }))
+    fireEvent.click(startButton())
+    expect(onStart.mock.calls[1]![0].map((c: { team?: number }) => c.team)).toEqual([0, 1, 2, 0, 1, 2])
+    // 5 players can't split evenly: no team choice, and nobody gets a team.
+    fireEvent.click(screen.getByRole('radio', { name: '5' }))
+    expect(screen.queryByRole('group', { name: 'Teams' })).toBeNull()
+    fireEvent.click(startButton())
+    expect(onStart.mock.calls[2]![0].every((c: { team?: number }) => c.team === undefined)).toBe(true)
+  })
 })

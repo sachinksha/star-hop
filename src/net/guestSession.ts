@@ -13,9 +13,11 @@ import {
   parseHostMessage,
   type GuestMessage,
   type Intent,
+  type Nudge,
   type RejectReason,
   type SeatView,
   type Snapshot,
+  type TeamNudge,
 } from './protocol'
 import type { Channel, Network } from './transport'
 
@@ -56,6 +58,8 @@ export interface GuestHandlers {
   /** One new action arrived, in order. */
   onAction(action: GameAction, seq: number, gameId: number): void
   onPaused(paused: boolean): void
+  /** Team play: the team's current suggestions changed. */
+  onNudges?(nudges: TeamNudge[]): void
 }
 
 const seatKey = (hostId: string) => `star-hop:seat:${hostId}`
@@ -120,6 +124,11 @@ export class GuestSession {
     this.send({ t: 'intent', seq, ...intent })
   }
 
+  /** Team play: suggests something to the finished teammate about to roll. */
+  sendNudge(seq: number, nudge: Nudge): void {
+    this.send({ t: 'nudge', seq, nudge })
+  }
+
   /** Asks for a full snapshot, after noticing a gap in the action sequence. */
   requestResync(): void {
     this.send({ t: 'resync' })
@@ -166,6 +175,9 @@ export class GuestSession {
         return
       case 'paused':
         this.handlers.onPaused(msg.paused)
+        return
+      case 'nudges':
+        this.handlers.onNudges?.(msg.nudges)
         return
       case 'ended':
         this.store.removeItem(seatKey(this.invite.hostId))

@@ -7,7 +7,8 @@
  *  - Walk clockwise the full count; own pre-start leads into home; exact count
  *    into and inside home.
  *  - Never jump over or land on your own marble. Jump opponents freely; land on
- *    one to bump it back to its base.
+ *    one to bump it back to its base. A teammate's marble can be jumped but
+ *    not landed on (team play, R18).
  *  - A marble that starts its turn on a star may hop star to star (each star is
  *    one step, round and round if you like), then walk the rest of the count
  *    down the arm of the star it stopped on.
@@ -30,14 +31,14 @@ import {
 import type { Color, Marble, Move, MoveVia, Player, Spot } from './types'
 
 /** Who sits on each hole, keyed by spotKey. Base marbles are left out. */
-export type Occupancy = Map<string, { color: Color; marbleId: number }>
+export type Occupancy = Map<string, { color: Color; marbleId: number; team: number | null }>
 
 export function occupancy(players: Player[]): Occupancy {
   const map: Occupancy = new Map()
   for (const p of players) {
     for (const m of p.marbles) {
       if (m.spot.kind === 'base') continue
-      map.set(spotKey(p.color, m.spot), { color: p.color, marbleId: m.id })
+      map.set(spotKey(p.color, m.spot), { color: p.color, marbleId: m.id, team: p.team })
     }
   }
   return map
@@ -112,7 +113,8 @@ function routesFor(color: Color, marble: Marble, dice: number): Route[] {
 
 /**
  * Turns a route into a Move, or null when it is blocked: an own marble on any
- * hole of the path, or a route that ends where it began (a full lap of the stars).
+ * hole of the path, a teammate's marble on the last hole, or a route that ends
+ * where it began (a full lap of the stars).
  */
 function toMove(occ: Occupancy, player: Player, marble: Marble, route: Route): Move | null {
   const to = route.path[route.path.length - 1]
@@ -126,7 +128,9 @@ function toMove(occ: Occupancy, player: Player, marble: Marble, route: Route): M
       if (who.marbleId !== marble.id) return null
       continue
     }
-    if (i === route.path.length - 1) bumped = who
+    if (i < route.path.length - 1) continue
+    if (player.team !== null && who.team === player.team) return null
+    bumped = { color: who.color, marbleId: who.marbleId }
   }
   return {
     marbleId: marble.id,

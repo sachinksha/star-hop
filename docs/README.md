@@ -24,6 +24,10 @@ Star Hop has a harder domain than Ludo: a board that is a graph rather than a li
 | 8 | [React patterns new in this codebase](08-react-patterns.md) | State that expires on its own, the latest-ref pattern, syncing with imperative widgets, imperative DOM writes for gestures, one-shot animations |
 | 9 | [Tooling and the modern platform](09-tooling-and-platform.md) | TypeScript 7, `noUncheckedIndexedAccess`, mapped types, Vite 8, oxlint, dev/prod parity, which new CSS and DOM features are safe to use |
 | 10 | [Interview preparation](10-interview-prep.md) | Question bank with answers tied to this code, design-system and system-design prompts, stories to tell |
+| 11 | [Touch targets on a dense board](11-touch-targets.md) | Measuring the problem, the published guidelines, six solutions compared, nearest-candidate (Voronoi) hit testing, indirect selection with press-to-preview |
+| 12 | [Team play and deciding together online](12-teams.md) | Extending a rules engine without breaking replays, "who moves" versus "whose turn", protocol versioning, designing suggestions (not chat) between teammates |
+| 13 | [Sound design with Web Audio](13-sound.md) | The audio graph, synthesising tabla, flute and plucked strings, ragas and just intonation, a limiter, measuring loudness offline, testing audio code |
+| 14 | [Settings and information architecture](14-settings.md) | Separating preferences from destructive actions, decluttering a toolbar, native-first controls, settings that evolve without migrations, stacking modals |
 
 ## A suggested two-week plan
 
@@ -34,11 +38,14 @@ Star Hop has a harder domain than Ludo: a board that is a graph rather than a li
 | 3–4 | Chapter 3. Rebuild `Sheet.tsx` from an empty file without looking, then compare |
 | 5 | Chapter 4. Reproduce the tap bug with the steps in the chapter, then explain it out loud in two minutes |
 | 6 | Chapter 5. Add a high-contrast theme using only tokens |
-| 7 | Chapter 6. Add a schema migration from save version 1 to 2 |
+| 7 | Chapter 6. Add a version 3 save migration on top of the real 1→2 one |
 | 8 | Chapter 7. Measure how much the reach cache saves with a quick benchmark |
 | 9 | Chapter 8. Replace the latest-ref pattern with `useEffectEvent` and compare |
 | 10 | Chapter 9. Turn off `noUncheckedIndexedAccess` and look at what it was protecting |
-| 11–14 | Chapter 10. Mock interviews: the design prompts out loud, time-boxed, then the behavioural stories |
+| 11 | Chapters 11 and 14. Play on a phone with move buttons off, then on; write down what changed |
+| 12 | Chapter 12. Trace one helper turn through every layer: engine, hook, protocol, UI |
+| 13 | Chapter 13. Make a new sound theme (say, a harmonium) and balance its loudness with the offline script |
+| 14 | Chapter 10. Mock interviews: the design prompts out loud, time-boxed, then the behavioural stories |
 
 ## What carried over from Ludo, and what that proves
 
@@ -49,7 +56,9 @@ Ludo's playbook predicted which files would be reusable. Star Hop tested that pr
 | [net/transport.ts](../src/net/transport.ts), [net/memoryNetwork.ts](../src/net/memoryNetwork.ts), [net/invite.ts](../src/net/invite.ts), [net/iceServers.ts](../src/net/iceServers.ts), [hooks/useGameClock.ts](../src/hooks/useGameClock.ts) | **Identical** |
 | [net/protocol.ts](../src/net/protocol.ts) | Only the move intent: `tokenId` became `marbleId` + `to`, with a new `parseSpot` |
 | [net/hostSession.ts](../src/net/hostSession.ts), [net/guestSession.ts](../src/net/guestSession.ts), [net/peerNetwork.ts](../src/net/peerNetwork.ts), [store/onlineStore.ts](../src/store/onlineStore.ts) | A few lines each: storage key names, `!` assertions that the stricter compiler setting `noUncheckedIndexedAccess` demanded ([chapter 9](09-tooling-and-platform.md)), a magic `12` replaced by `MAX_NAME_LENGTH`, and a fix so a guest leaving no longer wipes a saved local game |
-| [audio/sfx.ts](../src/audio/sfx.ts) | New sound names; same engine |
+| [audio/sfx.ts](../src/audio/sfx.ts) | New sound names at first; later rewritten around sound themes ([chapter 13](13-sound.md)) |
+
+Team play later changed the protocol on purpose (version 2: a `for` on roll intents, a `pass` intent and team nudges; [chapter 12](12-teams.md)). That was a change to the *game's* vocabulary, and the transport, invite and session plumbing still didn't change.
 
 Multiplayer, about 1,200 lines in Ludo, cost Star Hop almost nothing, because the network layer only knows "a serialisable action and a reducer". In interviews this is your evidence for a principal-level claim: **an abstraction is proven by its second use, not its first.** Ludo's playbook said "build the second game first, then extract what turned out to be shared", and this table is that extraction list.
 

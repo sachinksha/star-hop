@@ -1,11 +1,12 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { previewSound } from './audio/sfx'
 import { BASE, home, loop } from './game/testUtils'
 import type { Color, Spot } from './game/types'
 import { DEFAULT_SETTINGS, useGameStore } from './store/gameStore'
 
-vi.mock('./audio/sfx', () => ({ playSound: vi.fn(), setMuted: vi.fn(), isMuted: () => false }))
+vi.mock('./audio/sfx', () => ({ playSound: vi.fn(), previewSound: vi.fn(), setMuted: vi.fn(), setVolume: vi.fn(), setSoundTheme: vi.fn(), isMuted: () => false }))
 
 const store = () => useGameStore.getState()
 
@@ -94,17 +95,24 @@ describe('App', () => {
     expect(screen.getByTestId('announcer')).toHaveTextContent('Red has no legal move')
   })
 
-  it('switches theme from setup: system, light, dark, back to system', () => {
+  it('changes the theme and sound style from the settings on setup', () => {
     render(<App />)
-    const button = () => screen.getByRole('button', { name: /^Theme:/ })
-    expect(button()).toHaveAccessibleName('Theme: System. Switch to Light')
-    fireEvent.click(button())
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    const sheet = screen.getByRole('dialog', { name: 'Settings' })
+    expect(within(sheet).getByRole('radio', { name: 'System' })).toBeChecked()
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Light' }))
     expect(document.documentElement.dataset.theme).toBe('light')
-    fireEvent.click(button())
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Dark' }))
     expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(button()).toHaveAccessibleName('Theme: Dark. Switch to System')
-    fireEvent.click(button())
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'System' }))
     expect(document.documentElement.dataset.theme).toBeUndefined()
+
+    fireEvent.click(within(sheet).getByRole('radio', { name: /Tabla/ }))
+    expect(store().settings.soundTheme).toBe('tabla')
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Play a sample of Sitar' }))
+    expect(previewSound).toHaveBeenLastCalledWith('win', 'sitar')
+    // The setup screen has no game to end, so no "This game" section.
+    expect(within(sheet).queryByRole('heading', { name: 'This game' })).toBeNull()
   })
 
   it('opens the join screen from an invite link, even over a saved local game', () => {
@@ -133,14 +141,36 @@ describe('App', () => {
     rollNext(3)
     fireEvent.keyDown(window, { key: ' ' })
     advance(TIMINGish)
-    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    const changeSetup = () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Settings' })).getByRole('button', { name: 'Change setup' }))
+    }
+    changeSetup()
     expect(screen.getByRole('alertdialog', { name: 'Abandon the current game?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Keep playing' }))
     expect(store().game).not.toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Abandon and open settings' }))
+    expect(store().paused).toBe(false)
+    changeSetup()
+    fireEvent.click(screen.getByRole('button', { name: 'Abandon and change setup' }))
     expect(screen.getByRole('heading', { name: 'Star Hop', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start game' })).toBeInTheDocument()
+  })
+
+  it('keeps game-ending actions apart in settings, and pauses while settings are open', () => {
+    startTwoPlayer([])
+    fireEvent.keyDown(window, { key: 's' })
+    const sheet = screen.getByRole('dialog', { name: 'Settings' })
+    expect(store().paused).toBe(true)
+    const game = within(sheet).getByRole('heading', { name: 'This game' }).closest('section')!
+    expect(within(game).getByRole('button', { name: 'New game' })).toBeInTheDocument()
+    expect(within(game).getByRole('button', { name: 'Change setup' })).toBeInTheDocument()
+    // Simple preferences apply at once and don't touch the game.
+    const before = store().settings.autoRoll
+    fireEvent.click(within(sheet).getByRole('switch', { name: 'Auto roll' }))
+    expect(store().settings.autoRoll).toBe(!before)
+    expect(store().game).not.toBeNull()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Close' }))
+    expect(store().paused).toBe(false)
   })
 
   it('pauses a local game while the rules are open, and resumes it when they close', () => {

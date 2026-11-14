@@ -21,6 +21,12 @@ Support both: `open` and `onOpenChange` for controlled use, `defaultOpen` for si
 **Q: Design a theming system for a component library used by several products.**
 Three token layers (palette, semantic, component), CSS custom properties at runtime, light, dark and system via an attribute plus `prefers-color-scheme` (or `light-dark()` with `color-scheme`), derived shades with `color-mix()`, `color-scheme` for native controls, and a blocking script or server-read cookie to avoid the flash. Then governance: who can add tokens, how deprecations work, and visual regression tests per theme. ([Chapter 5](05-theming.md))
 
+**Q: Users say small targets on a touch screen are hard to hit. What do you do?**
+Measure first (pixels per target on real devices), compare with the guidance (WCAG 2.5.8 is 24px, Apple 44pt, Material 48dp), then lay out options: bigger targets, redesign, zoom, loupe, disambiguation, nearest-candidate snapping, indirect selection. Choose by cost and by what failure costs: a wrong *move* is worse than a dead tap, hence the ambiguity margin. Finish with the metrics: dead taps, wrong picks, undo right after a move. ([Chapter 11](11-touch-targets.md))
+
+**Q: Where would you put a "delete everything" action in settings?**
+Sort by consequence, not topic: instant reversible preferences together; destructive actions in a separate, visually distinct section, each confirmed. And make sure the confirmation can actually stack above the settings modal (top layer versus z-index). ([Chapter 14](14-settings.md))
+
 ## Rendering and the platform
 
 **Q: SVG or Canvas for an interactive diagram?**
@@ -34,6 +40,12 @@ It maps a user coordinate system onto the element's CSS box, so the design scale
 
 **Q: How do you detect touch devices?**
 Capability queries, not the user agent: `(hover: none) and (pointer: coarse)` for the primary input, `any-pointer` and `any-hover` for any input. Adapt the copy ("Tap" or "Press Space") and hide keyboard hints. Be aware of hybrid devices and whether you react to changes.
+
+**Q: How would you ship sound effects in a web app?**
+Lazy `AudioContext` after a gesture (autoplay policy), schedule on the audio clock not timers, one master chain with a limiter, a preview that respects user intent, and loudness balanced by measurement (`OfflineAudioContext`, RMS or LUFS), not by ear. Synthesis versus files is a trade-off of realism against size, licensing and tweakability. ([Chapter 13](13-sound.md))
+
+**Q: How do you test code whose output is audio (or canvas, or WebGL)?**
+Pull the maths into pure functions and test those; inject the context and run against a fake that rejects what the real API rejects; render offline in a real browser for the properties you can measure (loudness, pixel diffs); and let a human judge the rest.
 
 **Q: Which new CSS features would you adopt today, and how do you decide?**
 Baseline status, cosmetic versus functional impact, your own analytics, and a fallback plan. Examples from here: `:has()` for a scroll lock (cosmetic if missing), `color-mix()` for tints, `dvh` for mobile height, `overscroll-behavior` for scroll chaining. ([Chapter 9](09-tooling-and-platform.md))
@@ -63,6 +75,12 @@ Store positions (facts), derive progress (judgements). Give nodes stable keys fo
 **Q: When can you add probabilities and when must you multiply?**
 "Any of several independent events" is `1 − Π(1 − pᵢ)`. Expected counts add, by linearity of expectation, even for dependent events. State your independence assumption. ([Chapter 7](07-bots-and-probability.md))
 
+**Q: You add a feature and two concepts that were always equal now differ (here: "whose turn" and "whose marbles"). How do you find the bugs?**
+Name the new concept in the model (`playingFor`, `moverOf`), then audit every use of the old one and decide which each meant. The compiler can't help when both are the same type, so consider branded types. Back it with an end-to-end property test: seeded games played to the end and replayed exactly. ([Chapter 12](12-teams.md))
+
+**Q: Design how teammates on different devices agree on a decision.**
+Compare free chat, binding votes and preset suggestions. Advisory presets win for a fast game: safe, language-light, no moderation. Each suggestion is tagged with the position it was given in so it expires on its own, replaces the sender's previous one, goes to the team only, and is validated by the authority like any input. Be honest that a host-authoritative design can't keep secrets from the host. ([Chapter 12](12-teams.md))
+
 **Q: How does memoisation interact with immutability?**
 With immutable data, identity implies equality, so a `WeakMap` keyed by the object is a correct, leak-free cache. The bot's reach maps are cached per `players` array this way. Mutation would make the cache silently wrong, and the same reasoning underlies `React.memo`, `useMemo` and selector libraries.
 
@@ -75,18 +93,28 @@ Use this structure: requirements and constraints → API or data model → archi
 3. **Design the frontend of an online board-game platform** (many games, ranked play). What is shared (action-log store, replay, network, lobby) and what is per game (engine, board, bot)? Where does authority live as you grow from P2P to a room server? How do you save, replay and spectate? (Use Ludo's [chapter 8](../../ludo-game/docs/08-multiplayer-system-design.md) plus this guide's README table.)
 4. **Add dark mode to a ten-year-old app with 2,000 hard-coded colours.** Inventory with a codemod, introduce semantic tokens, migrate by surface, add visual regression tests, avoid a flash on load, and get it out without a big-bang release.
 5. **A rules or help system for a complex product** (like this Rules sheet, at scale). Where does content come from (CMS or code)? How do you keep numbers in sync with behaviour (read constants, as `RulesContent` does)? Localisation, contextual help, analytics on what people open.
+6. **Design a mobile-first interaction for picking one of many small, dense items** (a seat map, a calendar grid, a dense chart). Targets, snapping, indirect selection, preview before commit, accessibility, and how you would measure error rates. ([Chapter 11](11-touch-targets.md))
+7. **Add team play to an existing multiplayer game.** Rules, data model and migration, protocol versioning, bots, and a safe way for teammates to coordinate. ([Chapter 12](12-teams.md))
 
 ## Stories for behavioural rounds
 
 - **A hard bug:** the mobile "big black circle" ([chapter 4](04-mobile-and-touch.md)). Hypotheses first, reproduction with Playwright and a saved-game fixture, measurement, root cause (focus ring plus SVG user units), a fix that kept keyboard accessibility, plus the design improvement the user asked for.
 - **Proving an abstraction:** Ludo's network layer reused nearly unchanged ([README table](README.md#what-carried-over-from-ludo-and-what-that-proves)). Talk about resisting early extraction and letting the second use decide.
 - **Choosing the platform over a library:** `<dialog>` instead of a modal library. What you gained (bundle, inertness, focus), what you built yourself (animation, gestures), and when you would switch to a library (snap points, nested sheets, a design-system mandate).
+- **A layout bug no unit test could catch:** a hidden radio whose containing block was the dialog, so focusing it scrolled an `overflow: hidden` dialog. Measured `scrollTop`, fixed the cause (`position: relative`) and the class of bug (`overflow: clip`). ([Chapter 14](14-settings.md))
 - **Raising the bar safely:** turning on `noUncheckedIndexedAccess` and treating each `!` as a reviewable claim.
+- **Solving a usability problem with data:** fat-finger taps. Measured 17px spacing against 44–48px guidance, ruled out "just make it bigger", combined snapping (research: the bubble cursor) with the user's own idea of numbered buttons, and added safety limits so the clever part can never play a wrong move.
+- **Extending a mature design:** team play. A reserved field paid off, one migration and one protocol bump, and an audit for code that confused "whose turn" with "whose marbles".
+- **Making a vague request concrete:** "sounds like a tabla or flute". Built five themes with real musical structure (bols, a tihai, Raag Bhupali), a way to audition them, and measured loudness so switching themes doesn't jump the volume.
 - **Product judgement:** pausing the game while the rules are open, but never overriding a player who paused first, and never pausing an online game for everyone.
 
 ## "What would you change?" (have an honest list)
 
-- `ConfirmDialog` should use `<dialog>` (Tab trap, inertness) and `useId`.
+- `ConfirmDialog` should use `<dialog>` (Tab trap, inertness) and `useId`. Today it can't stack above an open sheet (top layer), so Settings closes before confirming.
+- Bots ignore their teammates' nudges; a finished bot could honour the most-requested choice.
+- Team nudges are hidden from opponents in the UI, but the host's browser sees them all.
+- The move buttons shift the content below the board when they appear; space could be reserved.
+- Loudness is balanced by RMS; LUFS would match perception better.
 - The swipe works only from the header; native sheets also drag from content scrolled to the top.
 - `BoardBase` re-renders with every animation step; memoise it with a stable `seated` set, after measuring.
 - The dark theme tokens are duplicated; `light-dark()` would remove that.
