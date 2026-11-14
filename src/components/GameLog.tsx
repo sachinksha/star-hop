@@ -58,6 +58,7 @@ export function KeyboardHelp() {
         <dt><kbd>L</kbd></dt><dd>Show / hide game log</dd>
         <dt><kbd>N</kbd></dt><dd>New game</dd>
         <dt><kbd>S</kbd></dt><dd>Settings</dd>
+        <dt><kbd>?</kbd></dt><dd>Game rules</dd>
       </dl>
     </section>
   )

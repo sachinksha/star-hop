@@ -102,7 +102,7 @@
 body { margin: 0; min-height: 100dvh; background: var(--bg); display: flex; flex-direction: column; }
 #root { flex: 1; display: flex; flex-direction: column; }
 
-button, .board { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button, .board, .board * { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
 button {
   font: inherit;
@@ -129,7 +129,7 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
 
 /* ---------- Setup ---------- */
 .setup { position: relative; max-width: 640px; margin: 0 auto; text-align: center; padding: 1.5rem 0 2rem; }
-.setup-corner { display: flex; justify-content: flex-end; margin-bottom: -0.5rem; }
+.setup-corner { display: flex; justify-content: flex-end; gap: 0.35rem; margin-bottom: -0.5rem; }
 .setup h1 { font-size: clamp(2.4rem, 8vw, 3.4rem); margin: 0; letter-spacing: 0.03em; }
 .tagline { color: var(--ink-soft); margin: 0.3rem 0 1.8rem; }
 fieldset { border: none; margin: 0 0 1.4rem; padding: 0; min-width: 0; }
@@ -269,14 +269,22 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .hole-base { fill: color-mix(in srgb, var(--arm) 40%, #000); stroke: color-mix(in srgb, var(--arm) 55%, #000); }
 
 .marble { transition: transform 0.13s linear; }
+/* No browser focus ring on board pieces, on any kind of focus. Mobile Chrome draws
+   one on plain :focus after a tap, and inside the scaled SVG its "5px" means 5 board
+   units: a ring hundreds of pixels wide that stayed until focus moved. The halo
+   below is the focus indicator instead, shown only for keyboard focus. */
+.marble, .badge { outline: none; }
 .marble-body { fill: var(--arm); stroke: rgb(0 0 0 / 0.55); stroke-width: 0.04; }
 .marble-shine { fill: #fff; opacity: 0.5; pointer-events: none; }
 .marble-hit { fill: transparent; }
 .marble-halo { fill: none; stroke: #fff; stroke-width: 0.07; animation: glow 1.2s ease-in-out infinite; }
 .marble-pickable { cursor: pointer; }
-.marble-pickable:focus-visible { outline: none; }
 .marble-pickable:focus-visible .marble-halo { stroke: var(--focus); stroke-width: 0.12; }
 .marble-selected .marble-halo { stroke: var(--star); stroke-width: 0.12; animation: none; }
+/* Picking a marble sends out one ring that grows and fades, then gets out of the way.
+   At rest it is invisible, so with animations off (reduced motion) nothing shows. */
+.marble-ping { fill: none; stroke: var(--star); stroke-width: 0.08; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: ping 0.55s ease-out; }
+@keyframes ping { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(2.2); } }
 .marble-number { font-size: 0.4px; font-weight: 700; fill: #fff; paint-order: stroke; stroke: rgb(0 0 0 / 0.6); stroke-width: 0.06px; pointer-events: none; }
 @keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
@@ -284,8 +292,9 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .badge-body { fill: var(--badge); stroke: var(--star-edge); stroke-width: 0.08; filter: drop-shadow(0 0.04px 0.08px rgb(0 0 0 / 0.5)); }
 .badge-bump .badge-body { stroke: var(--danger); stroke-width: 0.12; }
 .badge-number { font-size: 0.52px; font-weight: 800; fill: var(--badge-ink); pointer-events: none; }
-.badge:hover .badge-body, .badge:focus-visible .badge-body { fill: var(--star); }
-.badge:focus-visible { outline: none; }
+.badge:focus-visible .badge-body { fill: var(--star); }
+/* Hover only where hovering exists: on touch screens :hover sticks after a tap. */
+@media (hover: hover) { .badge:hover .badge-body { fill: var(--star); } }
 .last-move { fill: none; stroke: var(--arm); stroke-width: 0.1; stroke-linecap: round; stroke-linejoin: round; opacity: 0.55; pointer-events: none; }
 .last-move-from { fill: none; stroke: var(--arm); stroke-width: 0.08; opacity: 0.7; }
 .path-preview { fill: none; stroke: var(--star); stroke-width: 0.12; stroke-dasharray: 0.25 0.15; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
@@ -327,6 +336,83 @@ kbd { font: inherit; font-size: 0.8rem; padding: 0.05rem 0.35rem; border-radius:
 .confetti-piece { position: absolute; top: -12px; width: 8px; height: 12px; border-radius: 2px; animation: fall 3s linear forwards; }
 .confetti-burst { background: var(--arm); animation-duration: 1.6s; }
 @keyframes fall { to { transform: translate(var(--drift), 110vh) rotate(540deg); opacity: 0.2; } }
+
+/* ---------- Sheet (native <dialog>) ----------
+   A centred dialog on wide screens; a bottom sheet at 700px and below
+   (SHEET_QUERY in Sheet.tsx). States, set by Sheet.tsx:
+     [open]            shown with showModal(), animates in
+     [data-closing]    animating out; dialog.close() runs when the animation ends
+     [data-dragging]   following a finger; --drag-y holds the offset */
+.sheet {
+  padding: 0;
+  border: none;
+  color: inherit;
+  text-align: start; /* not inherited from where it sits in the page (setup is centred) */
+  background: var(--surface);
+  width: min(560px, calc(100% - 32px));
+  max-width: none;
+  max-height: min(82dvh, 760px);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+  transform: translateY(var(--drag-y, 0px));
+}
+/* Only when open: a closed dialog must keep the browser's display: none. */
+.sheet[open] { display: flex; animation: dialog-in 0.2s ease-out; }
+.sheet[data-closing] { animation: dialog-out 0.15s ease-in forwards; }
+.sheet::backdrop { background: rgb(10 12 18 / 0.55); animation: fade-in 0.2s ease-out; }
+.sheet[data-closing]::backdrop { animation: fade-out 0.15s ease-in forwards; }
+/* Scroll lock: the page behind a modal sheet must not scroll (iOS scrolls it otherwise). */
+html:has(.sheet[open]) { overflow: hidden; }
+
+.sheet-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.sheet-header { position: relative; flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.85rem 0.6rem 0.65rem 1.25rem; border-bottom: 1px solid var(--line); }
+.sheet-header h2 { flex: 1; margin: 0; font-size: 1.2rem; }
+.sheet-handle { display: none; }
+.sheet-close { display: inline-flex; padding: 0.5rem; border: none; border-radius: 50%; background: transparent; }
+.sheet-close:hover { background: var(--surface-2); }
+/* The body scrolls on its own; reaching its end never scrolls (or pull-to-refreshes) the page. */
+.sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0.25rem 1.25rem 1.25rem; }
+
+@keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@keyframes dialog-out { to { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+
+@media (max-width: 700px) {
+  .sheet {
+    width: 100%;
+    max-height: 88dvh;
+    margin: auto 0 0; /* pinned to the bottom edge */
+    border-radius: 18px 18px 0 0;
+    /* Clears the home indicator on phones that have one. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Snap back after a short drag. Not while dragging (it would lag the finger) or closing. */
+    transition: transform 0.22s ease-out;
+  }
+  .sheet[data-dragging], .sheet[data-closing] { transition: none; }
+  .sheet[open] { animation: sheet-in 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+  .sheet[data-closing] { animation: sheet-out 0.2s ease-in forwards; }
+  /* The header is the drag area: the browser must not scroll or zoom when it is dragged. */
+  .sheet-header { padding-top: 1.35rem; touch-action: none; user-select: none; cursor: grab; }
+  .sheet-handle { display: block; position: absolute; top: 0.55rem; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 999px; background: var(--line); }
+  .sheet-body { padding-inline: 1rem; }
+}
+@keyframes sheet-in { from { transform: translateY(100%); } }
+@keyframes sheet-out { from { transform: translateY(var(--drag-y, 0px)); } to { transform: translateY(100%); } }
+
+/* ---------- Rules ---------- */
+.rules section { padding: 0.85rem 0; border-bottom: 1px solid var(--line); }
+.rules section:last-child { border-bottom: none; }
+.rules h3 { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; font-size: 1rem; }
+.rules p { margin: 0; }
+.rules ul, .rules ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+.rules b { font-weight: 650; }
+.rules .rules-steps { counter-reset: step; list-style: none; padding-left: 0; }
+.rules-steps li { counter-increment: step; position: relative; padding: 0.45rem 0.6rem 0.45rem 2.5rem; border-radius: 10px; background: var(--surface-2); }
+/* Positioned, not a flex item: flex would split the sentence's text and <b> runs into separate boxes. */
+.rules-steps li::before { content: counter(step); position: absolute; left: 0.55rem; top: 0.45rem; display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: var(--star); color: #1f2430; font-weight: 700; font-size: 0.85rem; }
+.rules-tag { font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

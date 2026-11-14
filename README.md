@@ -20,6 +20,7 @@ Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human o
 - **Roll:** with Auto roll on (the default) your die rolls by itself. Otherwise press Space or tap the die.
 - **Pick a marble:** marbles you can move glow. Tap one, or press its number (1 to 4). If it can only go one place, it moves straight away. With Auto move on, a roll that leaves no real choice plays itself.
 - **Pick where it goes:** when a marble has several destinations (on a star, near the centre), each gets a numbered badge on the board, 1 being the one closest to home and the centre always last. Tap a badge or press its number. Hover or focus a badge to see the path; Esc goes back.
+- **Rules:** the Rules button (on setup, the join screen and the toolbar) or **?** opens a plain-language summary. On phones it is a bottom sheet you can swipe down to close. Reading the rules pauses a local game.
 - Undo/redo (← →), pause (P), log (L), new game (N) and settings (S) are on the toolbar and the keyboard.
 - Refreshing the page keeps your game: it comes back paused.
 - **Theme:** the theme button (on setup and in the toolbar) cycles System, Light and Dark. System follows your device and is the default; your choice is remembered.
@@ -107,6 +108,10 @@ The design is the same as the Ludo game's (see `LEARNINGS.md` in that project):
   - [engine.ts](src/game/engine.ts): turns, bumping, finishing, comeback dice, ending early, bot takeover.
   - [bot.ts](src/game/bot.ts): personas and move scoring.
 - A move is chosen as **marble + destination**, because a marble on a star or in the centre can have several destinations. Legal moves are ordered with the destination closest to home first and the centre last; the UI numbers destinations in this order.
+
+## Learning guide
+
+[docs/](docs/README.md) is a study guide that uses this codebase to prepare for senior and principal frontend interviews. It builds on the Ludo game's guide and covers what is new here: graph-shaped domain modelling, SVG geometry, the native-`<dialog>` bottom sheet, a mobile debugging case study, theming, persistence, probability in the bots, React patterns and modern tooling.
 
 ## Licence
 

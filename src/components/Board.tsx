@@ -193,6 +193,8 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
                 {/* Larger invisible tap target: about 24px across on a phone. */}
                 {canPick && <circle className="marble-hit" r={TAP_R} />}
                 {(canPick || isSelected) && <circle className="marble-halo" r={MARBLE_R + 0.13} />}
+                {/* Mounts on selection, so its one-shot animation plays each time a marble is picked. */}
+                {isSelected && <circle className="marble-ping" r={MARBLE_R + 0.13} />}
                 <circle className="marble-body" r={MARBLE_R} />
                 <circle className="marble-shine" cx={-0.09} cy={-0.11} r={0.1} />
                 {showNumbers && mine && (

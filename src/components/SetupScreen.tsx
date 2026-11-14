@@ -5,6 +5,7 @@ import { validateNames } from '../game/names'
 import { MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { COLOR_HEX, COLOR_NAME } from './colors'
+import { RulesButton } from './RulesSheet'
 import { ThemeSwitch } from './Toolbar'
 
 /** What sits in a seat. "friend" is a human on another device; it only exists online. */
@@ -102,6 +103,7 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
   return (
     <section className="setup" aria-labelledby="setup-title">
       <div className="setup-corner">
+        <RulesButton />
         <ThemeSwitch />
       </div>
       <h1 id="setup-title">Star Hop</h1>

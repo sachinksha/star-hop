@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { describeBoard, destinationLabel } from '../game/describe'
 import { CENTER, game, home, loop, place, playerOf, rollAs } from '../game/testUtils'
@@ -51,6 +51,14 @@ describe('Board', () => {
     ])
     fireEvent.click(badges[2]!)
     expect(onChoose).toHaveBeenCalledWith(g.legalMoves.find((m) => m.to.kind === 'center'))
+  })
+
+  it('sends out a one-shot ping only from the selected marble', () => {
+    renderBoard(null)
+    expect(document.querySelector('.marble-ping')).toBeNull()
+    cleanup()
+    renderBoard(0)
+    expect(screen.getByTestId('marble-red-0').querySelector('.marble-ping')).not.toBeNull()
   })
 
   it('previews the path of a focused destination', () => {

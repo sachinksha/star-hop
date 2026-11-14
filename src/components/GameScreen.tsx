@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { armOf } from '../game/board'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
 import { useGuestView, useHostView } from '../hooks/useOnline'
@@ -14,6 +14,7 @@ import { FinishBanner } from './FinishBanner'
 import { GameLog, KeyboardHelp } from './GameLog'
 import { Icon } from './Icons'
 import { PlayerPanel } from './PlayerPanel'
+import { RulesSheet } from './RulesSheet'
 import { SettingSwitch, ThemeSwitch, ToolButton } from './Toolbar'
 import { WinOverlay } from './WinOverlay'
 
@@ -42,6 +43,9 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const setLogOpen = useGameStore((s) => s.setLogOpen)
 
   const [pending, setPending] = useState<PendingAction>(null)
+  const [rulesOpen, setRulesOpen] = useState(false)
+  /** True when opening the rules paused the game, so closing them resumes it. */
+  const pausedForRules = useRef(false)
   /** A short hint for the last thing the player tried, tied to the position it was given in. */
   const [hint, setHint] = useState<{ seq: number; text: string } | null>(null)
   // This device's player sits at the bottom. Fixed for the game, so the board never spins.
@@ -82,6 +86,23 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           (s) => s.remote && s.joined && !s.connected && game.players.some((p) => p.color === s.color && p.remote && p.finishRank === null),
         )
       : []
+  // Reading the rules mid-game shouldn't cost a turn: a local game pauses while
+  // they are open. Online games never pause for one player.
+  const openRules = () => {
+    if (role === 'local' && !paused && !gameOver) {
+      pausedForRules.current = true
+      togglePause()
+    }
+    setRulesOpen(true)
+  }
+  const closeRules = () => {
+    setRulesOpen(false)
+    if (pausedForRules.current) {
+      pausedForRules.current = false
+      if (useGameStore.getState().paused) togglePause()
+    }
+  }
+
   const confirmPending = () => {
     if (pending === 'settings') doSettings()
     if (pending === 'new') doNew()
@@ -127,11 +148,12 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
       n: requestNew,
       s: requestSettings,
       l: () => setLogOpen(!logOpen),
+      '?': openRules,
     },
-    !pending && !offerEnd && !gameOver,
+    !pending && !offerEnd && !gameOver && !rulesOpen,
   )
   // With the win overlay up, only new game and settings make sense.
-  useShortcuts({ n: doNew, s: doSettings }, gameOver && !busy)
+  useShortcuts({ n: doNew, s: doSettings }, gameOver && !busy && !rulesOpen)
 
   const lastEvents = game.events
   const oops = lastEvents.find((e) => e.type === 'noMoves')
@@ -170,6 +192,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           {canPause && (
             <ToolButton icon={paused ? 'play' : 'pause'} label={paused ? 'Resume' : 'Pause'} onClick={togglePause} disabled={gameOver} pressed={paused} shortcut="P" shortcutLabel="P" />
           )}
+          <ToolButton icon="book" label="Rules" onClick={openRules} shortcut="?" shortcutLabel="?" />
           <SettingSwitch setting="autoRoll" icon="dice" label="Auto roll" title="Roll the die automatically on your turn. You still choose every real move." />
           <SettingSwitch setting="autoMove" icon="forward" label="Auto move" title="Play your move automatically when the roll leaves no real choice." />
           <SettingSwitch setting="sound" icon="speaker" label="Sound" />
@@ -276,6 +299,8 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
       <p className="sr-only" aria-live="polite" data-testid="announcer">
         {latestLog}
       </p>
+
+      <RulesSheet open={rulesOpen} onClose={closeRules} />
 
       {pending && (
         <ConfirmDialog

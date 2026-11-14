@@ -142,6 +142,26 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Star Hop', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start game' })).toBeInTheDocument()
   })
+
+  it('pauses a local game while the rules are open, and resumes it when they close', () => {
+    startTwoPlayer([])
+    fireEvent.keyDown(window, { key: '?' })
+    expect(screen.getByRole('dialog', { name: 'How to play' })).toBeInTheDocument()
+    expect(store().paused).toBe(true)
+    // Game shortcuts are off while the sheet is open.
+    fireEvent.keyDown(window, { key: 'p' })
+    expect(store().paused).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(store().paused).toBe(false)
+  })
+
+  it('leaves a game paused by the player paused after the rules close', () => {
+    startTwoPlayer([])
+    fireEvent.keyDown(window, { key: 'p' })
+    fireEvent.click(screen.getByRole('button', { name: 'Rules' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(store().paused).toBe(true)
+  })
 })
 
 /** Long enough for a roll to tumble and settle. */
