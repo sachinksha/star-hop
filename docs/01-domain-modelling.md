@@ -102,7 +102,7 @@ It does not just check `raw` and pass it through. It constructs a fresh object w
 
 ## Termination is a property you must test
 
-Star hops can circle forever, so "every game ends" is no longer obvious. [simulation.test.ts](../src/game/simulation.test.ts) plays seeded bot-only games for 2 to 6 players and asserts each one finishes, plus random-move games with invariants checked after every action (one marble per hole, ranks unique, legal moves recomputed match the stored ones). When your domain has cycles, add a test that something always makes progress.
+Star hops can circle forever, so "every game ends" is no longer obvious. [simulation.test.ts](../src/game/simulation.test.ts) plays seeded bot-only games for 2 to 6 players and asserts each one finishes, plus random-move games with invariants checked after every action (one marble per hole, except an owner and one visitor on a safe start hole; ranks unique; legal moves recomputed match the stored ones). When your domain has cycles, add a test that something always makes progress.
 
 ## Exercises
 

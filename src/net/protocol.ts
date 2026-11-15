@@ -13,8 +13,8 @@
 import { COLORS, HOME_SLOTS, LOOP_LENGTH } from '../game/board'
 import { MAX_NAME_LENGTH, MARBLES_PER_PLAYER, type Color, type GameAction, type GameState, type PlayerKind, type Spot } from '../game/types'
 
-/** Bumped whenever the message format changes incompatibly. 2: team play. */
-export const PROTOCOL_VERSION = 2
+/** Bumped whenever the message format changes incompatibly. 2: team play. 3: house rules. */
+export const PROTOCOL_VERSION = 3
 
 /** A seat as shown in the lobby and on every guest's screen. */
 export interface SeatView {
@@ -45,7 +45,7 @@ export interface Snapshot {
  * where it goes; the host checks it against the legal moves. In team play a
  * finished player's roll names the teammate it is for, or they pass.
  */
-export type Intent = { action: 'roll'; for?: Color } | { action: 'move'; marbleId: number; to: Spot } | { action: 'pass' }
+export type Intent = { action: 'roll'; for?: Color } | { action: 'move'; marbleId: number; to: Spot; die?: number } | { action: 'pass' }
 
 /**
  * Team play: a suggestion to the finished teammate who is about to roll.
@@ -108,7 +108,8 @@ export function parseGuestMessage(raw: unknown): GuestMessage | null {
       if (raw.action === 'pass') return { t: 'intent', seq: raw.seq, action: 'pass' }
       if (raw.action === 'move' && isInt(raw.marbleId, 0, MARBLES_PER_PLAYER - 1)) {
         const to = parseSpot(raw.to)
-        if (to) return { t: 'intent', seq: raw.seq, action: 'move', marbleId: raw.marbleId, to }
+        if (raw.die !== undefined && !isInt(raw.die, 1, 6)) return null
+        if (to) return { t: 'intent', seq: raw.seq, action: 'move', marbleId: raw.marbleId, to, ...(raw.die !== undefined ? { die: raw.die } : {}) }
       }
       return null
     }

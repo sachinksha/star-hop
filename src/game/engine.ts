@@ -6,15 +6,17 @@
  */
 import { createBotProfile } from './bot'
 import { COLORS, ENTRY_ROLLS, armOf, progressOf, sameSpot } from './board'
-import { legalMovesFor, playersAfterMove } from './rules'
+import { legalMovesForPool, playersAfterMove } from './rules'
 import { helperTargets, isHelperTurn, isTeammate, moverOf, sideDone, takesTurns } from './teams'
 import {
   MARBLES_PER_PLAYER,
+  NO_HOUSE_RULES,
   type BotProfile,
   type Color,
   type GameAction,
   type GameEvent,
   type GameState,
+  type HouseRules,
   type Player,
   type PlayerConfig,
   type Spot,
@@ -126,9 +128,10 @@ export function displayNames(configs: PlayerConfig[]): string[] {
 /**
  * Builds a fresh game for 2 to 6 seats on distinct arms. Seats are put in
  * clockwise arm order, since play passes clockwise. Each bot gets a random
- * playing style from `rng`, then `rng` picks who goes first (R14).
+ * playing style from `rng`, then `rng` picks who goes first (R14). `rules`
+ * are the house rules for this game (R22-R24), fixed from here on.
  */
-export function createGame(configs: PlayerConfig[], rng: Rng = secureRandom): GameState {
+export function createGame(configs: PlayerConfig[], rng: Rng = secureRandom, rules: HouseRules = NO_HOUSE_RULES): GameState {
   if (configs.length < MIN_PLAYERS || configs.length > MAX_PLAYERS) {
     throw new Error(`Star Hop needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players`)
   }
@@ -157,6 +160,8 @@ export function createGame(configs: PlayerConfig[], rng: Rng = secureRandom): Ga
     currentIndex: Math.min(players.length - 1, Math.floor(rng() * players.length)),
     playingFor: null,
     dice: null,
+    pool: [],
+    rules: { ...rules },
     phase: 'roll',
     legalMoves: [],
     winners: [],
@@ -188,9 +193,15 @@ function passTurn(state: GameState): GameState {
     currentIndex: nextActiveIndex(state.players, state.currentIndex),
     playingFor: null,
     dice: null,
+    pool: [],
     phase: 'roll',
     legalMoves: [],
   }
+}
+
+/** The game's house rules. Saves from before house rules have none (all off). */
+export function rulesOf(state: GameState): HouseRules {
+  return state.rules ?? NO_HOUSE_RULES
 }
 
 /** Wraps a state transition, bumping the action counter and storing events. */
@@ -205,26 +216,41 @@ function current(state: GameState): Player {
 }
 
 /**
- * Applies a roll with a known value (phase 'roll' only). When no move is
- * possible the turn passes, unless it was a 6 (R6, R7).
+ * Applies a roll with a known value (phase 'roll' only). The die goes into
+ * the turn's pool. When no move is possible the turn passes, unless it was a
+ * 6 (R6, R7).
  *
- * In team play a finished player must name `forColor`, the unfinished
- * teammate whose marbles the roll moves (R19). Anyone else rolls for
- * themselves, and `forColor` must be absent or their own colour.
+ * With the roll-sixes-first house rule (R22) a 6 is banked and the player
+ * rolls again straight away; moving starts after the first roll that isn't a
+ * 6, using the banked dice in any order. If no die can move a marble then,
+ * the turn passes.
+ *
+ * In team play a finished player names `forColor`, the unfinished teammate
+ * whose marbles the roll moves (R19), on the first roll of the turn. That
+ * choice holds for every bonus roll of the turn, so later rolls may leave
+ * `forColor` out. Anyone else rolls for themselves.
  */
 export function rollWithValue(state: GameState, value: number, forColor?: Color): GameState {
   if (state.phase !== 'roll' || !Number.isInteger(value) || value < 1 || value > 6) return state
   const seat = state.currentIndex
   const roller = current(state)
-  const targets = helperTargets(state)
+  const rules = rulesOf(state)
   let target: Player
-  if (targets.length > 0) {
-    const chosen = targets.find((p) => p.color === forColor)
-    if (!chosen) return state
-    target = chosen
+  if (state.playingFor) {
+    // A bonus roll for the teammate chosen at the start of the turn.
+    const sticky = state.players.find((p) => p.color === state.playingFor)
+    if (!sticky || sticky.finishRank !== null || (forColor !== undefined && forColor !== sticky.color)) return state
+    target = sticky
   } else {
-    if (roller.finishRank !== null || (forColor !== undefined && forColor !== roller.color)) return state
-    target = roller
+    const targets = helperTargets(state)
+    if (targets.length > 0) {
+      const chosen = targets.find((p) => p.color === forColor)
+      if (!chosen) return state
+      target = chosen
+    } else {
+      if (roller.finishRank !== null || (forColor !== undefined && forColor !== roller.color)) return state
+      target = roller
+    }
   }
   const helping = target !== roller
   const entry = ENTRY_ROLLS.includes(value)
@@ -233,23 +259,29 @@ export function rollWithValue(state: GameState, value: number, forColor?: Color)
     if (p === target) return { ...p, dryRolls, ...(i === seat ? { lastRoll: value } : {}) }
     return i === seat ? { ...p, lastRoll: value } : p
   })
-  const rolled: GameState = { ...state, players, dice: value }
+  const pool = [...(state.pool ?? []), value]
+  const playingFor = helping ? target.color : null
+  const rolled: GameState = { ...state, players, dice: value, pool, playingFor }
   const rollEvent: GameEvent = helping
     ? { type: 'roll', value, color: roller.color, for: target.color }
     : { type: 'roll', value, color: roller.color }
 
+  // R22: bank the 6 and roll again before any marble moves.
+  if (rules.rollSixesFirst && value === BONUS_ROLL) return commit(rolled, [rollEvent])
+
   const mover = players.find((p) => p.color === target.color)!
-  const moves = legalMovesFor(players, mover, value)
+  const moves = legalMovesForPool(players, mover, pool, rules)
   if (moves.length === 0) {
-    const rollAgain = value === BONUS_ROLL
-    const noMoves: GameEvent = { type: 'noMoves', color: roller.color, rollAgain }
-    const next = rollAgain ? { ...rolled, dice: null } : passTurn(rolled)
+    const rollAgain = value === BONUS_ROLL && !rules.rollSixesFirst
+    const noMoves: GameEvent =
+      pool.length > 1 ? { type: 'noMoves', color: roller.color, rollAgain, unused: pool } : { type: 'noMoves', color: roller.color, rollAgain }
+    const next = rollAgain ? { ...rolled, dice: null, pool: [] } : passTurn(rolled)
     return commit(next, [rollEvent, noMoves])
   }
-  return commit({ ...rolled, phase: 'move', legalMoves: moves, playingFor: helping ? target.color : null }, [rollEvent])
+  return commit({ ...rolled, phase: 'move', legalMoves: moves }, [rollEvent])
 }
 
-/** A finished player skips their roll for the team (R20). Only on such a turn. */
+/** A finished player skips their turn for the team (R20). Only before the turn's first roll. */
 export function passRoll(state: GameState): GameState {
   if (!isHelperTurn(state)) return state
   return commit(passTurn(state), [{ type: 'pass', color: current(state).color }])
@@ -259,13 +291,23 @@ export function passRoll(state: GameState): GameState {
 const sideKey = (p: Player) => (p.team === null ? p.color : `team:${p.team}`)
 
 /**
- * Plays a legal move for `marbleId` to `to`; ignored if not legal. The marble
+ * Plays a legal move for `marbleId` to `to` using die `die` (any die in the
+ * pool that allows it, when left out); ignored if not legal. The marble
  * belongs to the roller, or to the teammate they rolled for.
+ *
+ * After the move: if that marble's owner just finished, the turn ends, even
+ * with dice or a bonus roll left (R16). Otherwise, with dice left in the pool
+ * (R22) the player moves again, or loses the dice that can't move; with the
+ * pool empty a 6 earns another roll (R6), except under R22, where the bonus
+ * rolls were already made.
  */
-export function applyMove(state: GameState, marbleId: number, to: Spot): GameState {
+export function applyMove(state: GameState, marbleId: number, to: Spot, die?: number): GameState {
   if (state.phase !== 'move') return state
-  const move = state.legalMoves.find((m) => m.marbleId === marbleId && sameSpot(m.to, to))
+  const move = state.legalMoves.find((m) => m.marbleId === marbleId && sameSpot(m.to, to) && (die === undefined || m.die === die))
   if (!move) return state
+  const rules = rulesOf(state)
+  const pool = [...(state.pool ?? [move.die])]
+  pool.splice(pool.indexOf(move.die), 1)
 
   const roller = current(state)
   const mover = moverOf(state)
@@ -296,7 +338,7 @@ export function applyMove(state: GameState, marbleId: number, to: Spot): GameSta
     }
   }
 
-  const base: GameState = { ...state, players, legalMoves: [], dice: null, playingFor: null }
+  const base: GameState = { ...state, players, legalMoves: [], pool, dice: null }
   const winners: Color[] = finishedNow ? [...state.winners, mover.color] : state.winners
 
   // Game over when at most one seat, or one team, is still playing (R15, R21).
@@ -308,14 +350,24 @@ export function applyMove(state: GameState, marbleId: number, to: Spot): GameSta
     const finalPlayers = players.map((p) => (rest.includes(p) ? { ...p, finishRank: done + rest.indexOf(p) + 1 } : p))
     const finalWinners = [...winners, ...rest.map((p) => p.color)]
     events.push({ type: 'gameOver', winners: finalWinners })
-    return commit({ ...base, players: finalPlayers, phase: 'gameOver', winners: finalWinners }, events)
+    return commit({ ...base, players: finalPlayers, phase: 'gameOver', winners: finalWinners, pool: [], playingFor: null }, events)
   }
 
-  // A 6 earns another roll, unless the roller just finished (R6, R16) or has
-  // nobody left to roll for.
-  const rollerNow = players[state.currentIndex]!
-  const rollerFinishedNow = finishedNow && mover === roller
-  if (state.dice === BONUS_ROLL && !rollerFinishedNow && takesTurns(players, rollerNow)) {
+  // A finishing move ends the turn: leftover dice and bonus rolls are lost (R16).
+  // In team play the player then rolls for a teammate from their next turn.
+  if (finishedNow) return commit(passTurn({ ...base, winners }), events)
+
+  // R22: more dice to use. Any that no marble can use are lost, and the turn ends.
+  if (pool.length > 0) {
+    const nextMoves = legalMovesForPool(players, players[idx]!, pool, rules)
+    if (nextMoves.length > 0) return commit({ ...base, winners, phase: 'move', legalMoves: nextMoves, dice: state.dice }, events)
+    events.push({ type: 'noMoves', color: roller.color, rollAgain: false, unused: pool })
+    return commit(passTurn({ ...base, winners }), events)
+  }
+
+  // A 6 earns another roll (R6), for the same teammate when rolling for one.
+  // Under R22 the bonus rolls were made before moving, so the turn ends.
+  if (move.die === BONUS_ROLL && !rules.rollSixesFirst && takesTurns(players, players[state.currentIndex]!)) {
     return commit({ ...base, winners, phase: 'roll' }, events)
   }
   return commit(passTurn({ ...base, winners }), events)
@@ -329,7 +381,7 @@ export function applyAction(state: GameState, action: GameAction): GameState {
     case 'pass':
       return passRoll(state)
     case 'move':
-      return applyMove(state, action.marbleId, action.to)
+      return applyMove(state, action.marbleId, action.to, action.die)
     case 'end':
       return endGame(state)
     case 'takeover':

@@ -81,9 +81,19 @@ function playOutcomeSounds(events: GameEvent[]): void {
   if (fanfare) playSound('win')
 }
 
-/** The legal move an intent asks for, or undefined. */
-function findMove(g: GameState, marbleId: number, to: Spot): Move | undefined {
-  return g.legalMoves.find((m) => m.marbleId === marbleId && sameSpot(m.to, to))
+/** The legal move an intent asks for, or undefined. `die` picks among pooled dice (R22). */
+function findMove(g: GameState, marbleId: number, to: Spot, die?: number): Move | undefined {
+  return g.legalMoves.find((m) => m.marbleId === marbleId && sameSpot(m.to, to) && (die === undefined || m.die === die))
+}
+
+/**
+ * The die the player is using: their choice if it still has a move, else the
+ * first die in the pool that does. Null outside the move phase.
+ */
+function dieInUse(g: GameState, choice: { seq: number; die: number } | null): number | null {
+  if (g.phase !== 'move') return null
+  if (choice && choice.seq === g.actionSeq && g.legalMoves.some((m) => m.die === choice.die)) return choice.die
+  return g.legalMoves[0]?.die ?? null
 }
 
 export interface StarHopController {
@@ -109,11 +119,19 @@ export interface StarHopController {
   /** True for seats played from this device. */
   isMine: (color: Color) => boolean
 
+  /** Dice rolled this turn and not used yet (more than one only with R22). */
+  pool: number[]
+  /** The die the next move uses: chosen by the player, or the first usable one. */
+  selectedDie: number | null
+  /** Chooses which pooled die to use next (R22). Clears a picked marble. */
+  selectDie: (die: number) => void
+  /** Legal moves for the selected die. */
+  dieMoves: Move[]
   /** The marble picked by this device's player, waiting for a destination. */
   selected: number | null
   /** The selected marble's destinations, in display order (badge 1 first). */
   destinations: Move[]
-  /** Legal moves for one of the current player's marbles, in display order. */
+  /** Legal moves for one of the current player's marbles with the selected die, in display order. */
   movesFor: (marbleId: number) => Move[]
   /**
    * Picks a marble. With one destination it moves at once ('moved'); with
@@ -187,6 +205,8 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const [endDeclined, setEndDeclined] = useState(false)
   /** The picked marble, tied to the position it was picked in so it clears itself after any action. */
   const [selection, setSelection] = useState<{ seq: number; marbleId: number } | null>(null)
+  /** The die chosen from a pool (R22), tied to its position like the selection. */
+  const [dieChoice, setDieChoice] = useState<{ seq: number; die: number } | null>(null)
 
   // Refs let scheduled callbacks read the latest values without stale closures.
   const busyRef = useRef(false)
@@ -279,7 +299,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       }
 
       if (action.type === 'move') {
-        const move = g.phase === 'move' ? findMove(g, action.marbleId, action.to) : undefined
+        const move = g.phase === 'move' ? findMove(g, action.marbleId, action.to, action.die) : undefined
         if (!move) {
           setBusyBoth(false)
           return false
@@ -321,19 +341,20 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
 
   /**
    * Rolls for whoever's turn it is (not used by guests). In team play a
-   * finished player names the teammate `forColor` the roll is for; a roll the
-   * engine would reject (no teammate named, or the wrong one) is not made.
+   * finished player names the teammate `forColor` on the turn's first roll;
+   * bonus rolls in the same turn are for that teammate again, so `forColor`
+   * is ignored then. A first roll with no valid teammate named is not made.
    */
   const performRoll = useCallback(
     (forColor?: Color) => {
       const { game: g, paused: isPaused, settings } = useGameStore.getState()
       if (busyRef.current || isPaused || !g || g.phase !== 'roll') return
       const seat = g.players[g.currentIndex]!
-      const helping = isHelperTurn(g)
-      if (helping !== (forColor !== undefined && forColor !== seat.color)) return
-      if (helping && !helperTargets(g).some((p) => p.color === forColor)) return
-      const value = rollFor(g, rng, settings.comebackDice, helping ? forColor : undefined)
-      submit(helping ? { type: 'roll', value, actor: seat.kind, for: forColor } : { type: 'roll', value, actor: seat.kind })
+      const choosing = isHelperTurn(g)
+      if (choosing && !helperTargets(g).some((p) => p.color === forColor)) return
+      const target = choosing ? forColor : (g.playingFor ?? undefined)
+      const value = rollFor(g, rng, settings.comebackDice, target)
+      submit(choosing ? { type: 'roll', value, actor: seat.kind, for: forColor } : { type: 'roll', value, actor: seat.kind })
     },
     [rng, submit],
   )
@@ -351,7 +372,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       const { game: g, paused: isPaused } = useGameStore.getState()
       if (busyRef.current || isPaused || !g || g.phase !== 'move') return
       setSelection(null)
-      submit({ type: 'move', marbleId: move.marbleId, to: move.to, actor: g.players[g.currentIndex]!.kind })
+      submit({ type: 'move', marbleId: move.marbleId, to: move.to, actor: g.players[g.currentIndex]!.kind, die: move.die })
     },
     [submit],
   )
@@ -369,7 +390,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const playMine = useCallback(
     (move: Move) => {
       setSelection(null)
-      if (role === 'guest') sendIntent({ action: 'move', marbleId: move.marbleId, to: move.to })
+      if (role === 'guest') sendIntent({ action: 'move', marbleId: move.marbleId, to: move.to, die: move.die })
       else performMove(move)
     },
     [role, sendIntent, performMove],
@@ -382,16 +403,24 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     return isMine(g.players[g.currentIndex]!.color) ? g : null
   }, [isMine])
 
-  const movesFor = useCallback(
-    (marbleId: number) => (game.phase === 'move' ? game.legalMoves.filter((m) => m.marbleId === marbleId) : []),
-    [game],
-  )
+  const selectedDie = dieInUse(game, dieChoice)
+  const dieMoves = useMemo(() => (selectedDie === null ? [] : game.legalMoves.filter((m) => m.die === selectedDie)), [game, selectedDie])
+
+  const movesFor = useCallback((marbleId: number) => dieMoves.filter((m) => m.marbleId === marbleId), [dieMoves])
+
+  const selectDie = useCallback((die: number) => {
+    const g = useGameStore.getState().game
+    if (!g || g.phase !== 'move' || !g.legalMoves.some((m) => m.die === die)) return
+    setDieChoice({ seq: g.actionSeq, die })
+    setSelection(null)
+  }, [])
 
   const pickMarble = useCallback(
     (marbleId: number): PickResult => {
       const g = myMovePhase()
       if (!g) return 'none'
-      const moves = g.legalMoves.filter((m) => m.marbleId === marbleId)
+      const die = dieInUse(g, dieChoice)
+      const moves = g.legalMoves.filter((m) => m.marbleId === marbleId && m.die === die)
       const only = moves.length === 1 ? moves[0] : undefined
       if (only) {
         playMine(only)
@@ -401,7 +430,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       setSelection({ seq: g.actionSeq, marbleId })
       return 'choose'
     },
-    [myMovePhase, playMine],
+    [myMovePhase, playMine, dieChoice],
   )
 
   const selected = selection && selection.seq === game.actionSeq && game.phase === 'move' ? selection.marbleId : null
@@ -486,7 +515,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       }
       const auto = game.phase === 'move' && autoMove ? autoMoveFor(moverOf(game).color, game.legalMoves) : null
       if (auto) {
-        const id = window.setTimeout(() => sendIntent({ action: 'move', marbleId: auto.marbleId, to: auto.to }), TIMING.AUTO_MOVE_MS)
+        const id = window.setTimeout(() => sendIntent({ action: 'move', marbleId: auto.marbleId, to: auto.to, die: auto.die }), TIMING.AUTO_MOVE_MS)
         return () => window.clearTimeout(id)
       }
       return
@@ -504,7 +533,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
         if (intent.intent.action === 'pass') performPass()
         if (intent.intent.action === 'move' && g.phase === 'move') {
           // Only a legal move for that marble and hole is played; anything else is ignored.
-          const move = findMove(g, intent.intent.marbleId, intent.intent.to)
+          const move = findMove(g, intent.intent.marbleId, intent.intent.to, intent.intent.die)
           if (move) performMove(move)
         }
       }, 0)
@@ -615,8 +644,12 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     role,
     humanTurn: isMine(seat.color) && game.phase !== 'gameOver',
     mover: moverOf(game),
-    helperChoices: isMine(seat.color) && !paused ? helperTargets(game) : [],
+    helperChoices: isMine(seat.color) && !paused && isHelperTurn(game) ? helperTargets(game) : [],
     isMine,
+    pool: game.pool ?? [],
+    selectedDie,
+    selectDie,
+    dieMoves,
     selected,
     destinations,
     movesFor,

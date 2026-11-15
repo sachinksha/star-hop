@@ -4,7 +4,7 @@ import { SOUND_THEME_IDS, type SoundThemeId } from '../audio/themes'
 import { describeEvent } from '../game/describe'
 import { applyAction, createGame, type Rng } from '../game/engine'
 import { replay, undoIndex } from '../game/history'
-import type { GameAction, GameState, PlayerConfig } from '../game/types'
+import { HOUSE_RULE_KEYS, NO_HOUSE_RULES, type GameAction, type GameState, type HouseRules, type PlayerConfig } from '../game/types'
 
 // ---------------------------------------------------------------------------
 // Browser storage. Every access is wrapped: storage can be blocked, full, or
@@ -41,6 +41,8 @@ export interface Settings {
   autoMove: boolean
   /** Raise the odds of a 1 or 6 for players stuck in base for a long time (R13). */
   comebackDice: boolean
+  /** House rules for new games (R22-R24). A game keeps the rules it started with. */
+  houseRules: HouseRules
   /** Sound effects on. */
   sound: boolean
   /** Colour theme. 'system' follows the device's light or dark setting. */
@@ -80,6 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRoll: false,
   autoMove: false,
   comebackDice: true,
+  houseRules: NO_HOUSE_RULES,
   sound: true,
   theme: 'system',
   soundTheme: 'classic',
@@ -99,6 +102,11 @@ function loadSettings(): Settings {
     if (SOUND_THEME_IDS.includes(parsed.soundTheme as SoundThemeId)) settings.soundTheme = parsed.soundTheme as SoundThemeId
     if (typeof parsed.volume === 'number' && parsed.volume >= 0 && parsed.volume <= 1) settings.volume = parsed.volume
     if (MOVE_BUTTONS.includes(parsed.moveButtons as MoveButtons)) settings.moveButtons = parsed.moveButtons as MoveButtons
+    if (isObject(parsed.houseRules)) {
+      const saved = parsed.houseRules
+      settings.houseRules = { ...NO_HOUSE_RULES }
+      for (const key of HOUSE_RULE_KEYS) if (typeof saved[key] === 'boolean') settings.houseRules[key] = saved[key]
+    }
   }
   return settings
 }
@@ -116,7 +124,7 @@ function applySound(settings: Settings): void {
 
 export const SAVED_GAME_KEY = 'star-hop:game'
 export const LAST_SETUP_KEY = 'star-hop:last-setup'
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 
 interface SavedGame {
   v: number
@@ -132,9 +140,12 @@ interface SavedGame {
  *
  * v1 -> v2: team play added `GameState.playingFor`. Old games had no teams,
  * so it is always null.
+ * v2 -> v3: house rules added `GameState.rules` and the dice `pool`. Old games
+ * had no house rules and start with an empty pool.
  */
 const MIGRATIONS: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
   1: (old) => ({ ...old, v: 2, initial: isObject(old.initial) ? { ...old.initial, playingFor: null } : old.initial }),
+  2: (old) => ({ ...old, v: 3, initial: isObject(old.initial) ? { ...old.initial, rules: { ...NO_HOUSE_RULES }, pool: [] } : old.initial }),
 }
 
 export function migrateSave(raw: Record<string, unknown>): Record<string, unknown> | null {
@@ -279,7 +290,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
 
   start: (configs, rng) => {
     if (!hasHuman(configs)) return
-    const initial = createGame(configs, rng)
+    const initial = createGame(configs, rng, get().settings.houseRules)
     writeJson(LAST_SETUP_KEY, configs)
     set((s) => ({
       configs,

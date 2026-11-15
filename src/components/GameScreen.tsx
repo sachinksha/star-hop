@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { armOf } from '../game/board'
 import { hasTeams, isHelperTurn, teamStandings } from '../game/teams'
+import { HOUSE_RULE_KEYS } from '../game/types'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
 import { useGuestView, useHostView } from '../hooks/useOnline'
 import { IS_TOUCH, useShortcuts } from '../hooks/useShortcuts'
@@ -11,6 +12,8 @@ import { Board } from './Board'
 import { COLOR_HEX } from './colors'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Die } from './Dice'
+import { DicePool } from './DicePool'
+import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { FinishBanner } from './FinishBanner'
 import { GameLog, KeyboardHelp } from './GameLog'
 import { Icon } from './Icons'
@@ -33,7 +36,7 @@ function turnOf(name: string): string {
 }
 
 export function GameScreen({ hop }: { hop: StarHopController }) {
-  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, mover, helperChoices, isMine, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, lastMove, celebration, notice, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, rollFor, pass, undo, redo, togglePause } = hop
+  const { game, shownPlayers, rolling, busy, paused, role, humanTurn, mover, helperChoices, isMine, pool, selectedDie, selectDie, dieMoves, selected, destinations, movesFor, pickMarble, chooseDestination, playMove, cancelSelection, lastMove, celebration, notice, offerEnd, endEarly, keepWatching, takeoverSeat, canUndo, canRedo, canPause, roll, rollFor, pass, undo, redo, togglePause } = hop
   const leaveOnline = useOnlineStore((s) => s.leave)
   const reconnect = useOnlineStore((s) => s.reconnect)
   const nudges = useOnlineStore((s) => s.nudges)
@@ -76,7 +79,11 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   // Move buttons: on touch screens by default, where board pieces are smaller than a fingertip.
   const showPad = moveButtons === 'on' || (moveButtons === 'auto' && IS_TOUCH)
   const teams = hasTeams(game.players)
-  const pickable = canPick ? [...new Set(game.legalMoves.map((m) => m.marbleId))] : []
+  const pickable = canPick ? [...new Set(dieMoves.map((m) => m.marbleId))] : []
+  const usableDice = new Set(game.legalMoves.map((m) => m.die))
+  /** "Rolled 4", or with several dice banked (R22) "Dice 6, 6, 3: using the 3". */
+  const rolledText = pool.length > 1 ? `Dice ${pool.join(', ')}: using the ${selectedDie}.` : `Rolled ${selectedDie ?? game.dice}.`
+  const banking = game.phase === 'roll' && pool.length > 0
   const lastRoll = [...actions].reverse().find((a) => a.type === 'roll')
   const shownHint = hint && hint.seq === game.actionSeq ? hint.text : null
 
@@ -135,7 +142,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const pick = (marbleId: number) => {
     const result = pickMarble(marbleId)
     if (result === 'none' && canPick) {
-      setHint({ seq: game.actionSeq, text: `Marble ${marbleId + 1} can't move with a ${game.dice}.` })
+      setHint({ seq: game.actionSeq, text: `Marble ${marbleId + 1} can't move with a ${selectedDie}.` })
     } else {
       setHint(null)
     }
@@ -158,7 +165,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
       ' ': () => {
         if (canRoll) roll()
       },
-      ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [String(n), digit(n)])),
+      ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [String(n), digit(n)])),
       Escape: () => {
         if (selected === null) return false
         cancelSelection()
@@ -172,6 +179,12 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
       s: openSettings,
       l: () => setLogOpen(!logOpen),
       '?': openRules,
+      // R22: switch to the next die in the pool that can move something.
+      d: () => {
+        if (!canPick || usableDice.size < 2) return false
+        const order = [...usableDice]
+        selectDie(order[(order.indexOf(selectedDie ?? order[0]!) + 1) % order.length]!)
+      },
     },
     !pending && !offerEnd && !gameOver && !sheet,
   )
@@ -187,25 +200,31 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   else if (oops?.type === 'noMoves' && (busy || !humanTurn || game.phase === 'roll')) {
     const who = game.players.find((p) => p.color === oops.color)!
     const roller = who.name === 'You' ? 'You' : who.name
-    prompt = `Oops! ${roller} rolled a ${who.lastRoll} with no legal move.${oops.rollAgain ? ' A 6 rolls again.' : ''}`
+    prompt = oops.unused
+      ? `Oops! ${roller} can't use the ${oops.unused.join(', ')}.`
+      : `Oops! ${roller} rolled a ${who.lastRoll} with no legal move.${oops.rollAgain ? ' A 6 rolls again.' : ''}`
   } else if (busy) prompt = 'Moving...'
   else if (celebration) prompt = celebration.name === 'You' ? 'You got all your marbles home!' : `${celebration.name} got all their marbles home!`
   else if (helperTurn && helperChoices.length > 0)
     prompt = `${current.name === 'You' ? 'Your' : `${current.name}, your`} marbles are all home. Roll for a teammate, or pass.`
   else if (helperTurn) prompt = `${current.name} has finished and is choosing who to roll for...`
   else if (!humanTurn) prompt = `${current.name} is playing...`
+  else if (banking) prompt = `${turnOf(current.name)} A 6! Roll again before moving${autoRoll ? '...' : '.'}`
   else if (game.phase === 'roll' && autoRoll) prompt = `${turnOf(current.name)} Rolling...`
   else if (game.phase === 'roll') prompt = `${turnOf(current.name)} ${IS_TOUCH ? 'Tap the die to roll.' : 'Press Space or tap the die to roll.'}`
   else if (mover.color !== current.color && game.phase === 'move' && selected === null)
-    prompt = `Rolled ${game.dice} for ${mover.name}. ${IS_TOUCH ? 'Tap' : 'Pick'} one of ${mover.name}'s glowing marbles.`
+    prompt = `${rolledText} For ${mover.name}: ${IS_TOUCH ? 'tap' : 'pick'} one of ${mover.name}'s glowing marbles.`
   else if (selected !== null && showPad)
-    prompt = `Rolled ${game.dice}. Where does marble ${selected + 1} go? Tap a number on the board or below.`
+    prompt = `${rolledText} Where does marble ${selected + 1} go? Tap a number on the board or below.`
   else if (selected !== null)
     prompt = IS_TOUCH
-      ? `Rolled ${game.dice}. Tap a numbered hole for marble ${selected + 1}, or tap the marble again to go back.`
-      : `Rolled ${game.dice}. Pick where marble ${selected + 1} goes: press 1–${destinations.length}, or Esc to go back.`
-  else if (showPad) prompt = `Rolled ${game.dice}. Tap a glowing marble, or its number below.`
-  else prompt = IS_TOUCH ? `Rolled ${game.dice}. Tap a glowing marble.` : `Rolled ${game.dice}. Pick a marble: press 1–4 or click a glowing one.`
+      ? `${rolledText} Tap a numbered hole for marble ${selected + 1}, or tap the marble again to go back.`
+      : `${rolledText} Pick where marble ${selected + 1} goes: press ${destinations.length > 9 ? '1–9 or click a number' : `1–${destinations.length}`}, or Esc to go back.`
+  else if (showPad) prompt = `${rolledText} Tap a glowing marble, or its number below.${usableDice.size > 1 ? ' Tap a die to switch.' : ''}`
+  else
+    prompt = IS_TOUCH
+      ? `${rolledText} Tap a glowing marble.${usableDice.size > 1 ? ' Tap a die to switch.' : ''}`
+      : `${rolledText} Pick a marble: press 1–4 or click a glowing one.${usableDice.size > 1 ? ' D switches die.' : ''}`
 
   return (
     <section className="game" aria-label="Star Hop game">
@@ -324,6 +343,14 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
               onRoll={roll}
               label={`${current.name}'s die`}
             />
+            <DicePool
+              pool={pool}
+              banking={banking}
+              selectedDie={selectedDie}
+              usable={(d) => usableDice.has(d)}
+              interactive={canPick}
+              onSelect={selectDie}
+            />
             <p className="prompt" aria-live="polite">
               {prompt}
             </p>
@@ -365,6 +392,10 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         onClose={closeSheet}
         gameSection={
           <div className="settings-game">
+            <p className="setting-hint">
+              House rules: {HOUSE_RULE_KEYS.filter((k) => game.rules?.[k]).map((k) => HOUSE_RULE_TEXT[k].title).join(', ') || 'none'}.
+              They are chosen on the setup screen.
+            </p>
             <p className="setting-hint">These end or restart the game, so they always ask first.</p>
             {!isGuest && (
               <button type="button" onClick={fromSettings(requestNew)} disabled={!configs && role !== 'host'}>

@@ -141,13 +141,42 @@ describe('rolling for a teammate (R19, R20)', () => {
     expect(rollWithValue(g, 2, 'red').phase).toBe('move')
   })
 
-  it('gives the roller another roll after a 6, choosing again', () => {
+  it('keeps the chosen teammate for the bonus roll after a 6', () => {
     const rolled = rollWithValue(helperGame(), 6, 'green')
     const moved = applyMove(rolled, 0, loop(56))
     expect(moved.players[moved.currentIndex]!.color).toBe('red')
     expect(moved.phase).toBe('roll')
-    expect(moved.playingFor).toBeNull()
-    expect(isHelperTurn(moved)).toBe(true)
+    // The choice sticks: no new choice, and no switching teammate mid-turn.
+    expect(moved.playingFor).toBe('green')
+    expect(isHelperTurn(moved)).toBe(false)
+    expect(passRoll(moved)).toBe(moved)
+    const again = rollWithValue(moved, 2)
+    expect(again.playingFor).toBe('green')
+    expect(again.events[0]).toEqual({ type: 'roll', value: 2, color: 'red', for: 'green' })
+    expect(rollWithValue(moved, 2, 'red')).toBe(moved)
+    // The turn passes after the bonus move, and the choice is cleared.
+    const done = applyMove(again, 0, loop(58))
+    expect(done.playingFor).toBeNull()
+    expect(done.players[done.currentIndex]!.color).toBe('orange')
+  })
+
+  it('ends the turn when the teammate rolled for finishes, even on a 6', () => {
+    let g = finish(teamGame(), 'red', 1)
+    // Green needs a 6 to finish: last marble 6 steps from home slot 0.
+    g = place(g, 'green', [home(1), home(2), home(3), loop(startIndex('green') - 6)])
+    g = place(g, 'orange', [loop(70)])
+    const rolled = rollWithValue(turnOf(g, 'red'), 6, 'green')
+    const done = applyMove(rolled, 3, home(0))
+    expect(done.events.map((e) => e.type)).toContain('gameOver')
+  })
+
+  it("ends a player's own turn when they finish on a 6, and they roll for a teammate next turn", () => {
+    let g = place(teamGame(), 'red', [home(1), home(2), home(3), loop(startIndex('red') - 6)])
+    g = place(g, 'green', [loop(50)])
+    const done = applyMove(rollWithValue(g, 6), 3, home(0))
+    expect(playerOf(done, 'red').finishRank).toBe(1)
+    expect(done.players[done.currentIndex]!.color).toBe('orange')
+    expect(done.pool).toEqual([])
   })
 
   it('uses the teammate’s comeback odds', () => {

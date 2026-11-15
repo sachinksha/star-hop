@@ -170,18 +170,21 @@ describe('game store: saved local game', () => {
     expect(loadSavedGame()).toBeNull()
   })
 
-  it('upgrades a version 1 save (before team play) and resumes it', async () => {
+  it('upgrades a version 1 save (before team play) through every version and resumes it', async () => {
     store().start(TWO, FIRST)
     ENTER.forEach((a) => store().record(a))
     const saved = JSON.parse(window.localStorage.getItem(SAVED_GAME_KEY)!)
     expect(saved.v).toBe(SAVE_VERSION)
-    const { playingFor: _gone, ...oldInitial } = saved.initial
-    window.localStorage.setItem(SAVED_GAME_KEY, JSON.stringify({ ...saved, v: 1, initial: oldInitial }))
-    expect(migrateSave({ v: 1, initial: oldInitial })).toMatchObject({ v: 2, initial: { playingFor: null } })
+    const { playingFor: _p, rules: _r, pool: _q, ...oldInitial } = saved.initial
+    // Version 1 actions had no die on moves.
+    const oldActions = saved.actions.map(({ die: _d, ...a }: Record<string, unknown>) => a)
+    window.localStorage.setItem(SAVED_GAME_KEY, JSON.stringify({ ...saved, v: 1, initial: oldInitial, actions: oldActions }))
+    expect(migrateSave({ v: 1, initial: oldInitial })).toMatchObject({ v: 3, initial: { playingFor: null, pool: [], rules: { rollSixesFirst: false } } })
     const loaded = loadSavedGame()
-    expect(loaded?.v).toBe(2)
+    expect(loaded?.v).toBe(3)
     expect(loaded?.initial.playingFor).toBeNull()
-    expect(loaded?.actions).toEqual(ENTER)
+    expect(loaded?.initial.rules).toEqual({ rollSixesFirst: false, crossCentre: false, safeStarts: false })
+    expect(loaded?.actions).toHaveLength(ENTER.length)
   })
 
   it('resumes a saved game, paused, when the page loads again', async () => {

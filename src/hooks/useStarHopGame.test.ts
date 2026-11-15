@@ -72,7 +72,7 @@ describe('auto roll and automatic moves', () => {
     advance(TIMING.AUTO_ROLL_MS + TIMING.ROLL_MS + TIMING.SETTLE_MS + TIMING.AUTO_MOVE_MS + 5 * TIMING.STEP_MS + 200)
     expect(store().actions.slice(0, 2)).toEqual([
       { type: 'roll', value: 3, actor: 'human' },
-      { type: 'move', marbleId: 0, to: loop(33), actor: 'human' },
+      { type: 'move', marbleId: 0, to: loop(33), actor: 'human', die: 3 },
     ])
   })
 
@@ -194,7 +194,7 @@ describe('no legal move', () => {
     expect(store().actions.slice(0, 3)).toEqual([
       { type: 'roll', value: 6, actor: 'human' },
       { type: 'roll', value: 1, actor: 'human' },
-      { type: 'move', marbleId: 3, to: loop(6), actor: 'human' },
+      { type: 'move', marbleId: 3, to: loop(6), actor: 'human', die: 1 },
     ])
   })
 })
@@ -295,7 +295,7 @@ describe('team play', () => {
     expect(result.current.mover.color).toBe('green')
     // Auto move plays green's only move, animating green's marble.
     advance(TIMING.AUTO_MOVE_MS + 4 * TIMING.STEP_MS + TIMING.SETTLE_MS)
-    expect(store().actions[1]).toEqual({ type: 'move', marbleId: 0, to: loop(53), actor: 'human' })
+    expect(store().actions[1]).toEqual({ type: 'move', marbleId: 0, to: loop(53), actor: 'human', die: 3 })
     expect(result.current.shownPlayers.find((p) => p.color === 'green')!.marbles[0]!.spot).toEqual(loop(53))
   })
 
@@ -325,5 +325,76 @@ describe('team play', () => {
     act(() => result.current.roll())
     advance(TIMING.ROLL_MS + 100)
     expect(store().actions).toEqual([])
+  })
+})
+
+describe('house rule: roll all the sixes first (R22)', () => {
+  const SIXES = { rollSixesFirst: true, crossCentre: false, safeStarts: false }
+
+  it('banks sixes, then lets the player choose which die to use first', () => {
+    store().updateSettings({ autoMove: false, houseRules: SIXES })
+    seed(TWO, { red: [loop(30)] })
+    const rng = diceSequence([6, 3], 2)
+    const { result } = renderHook(() => useStarHopGame(rng))
+    // Auto roll keeps rolling while the dice are sixes.
+    advance(TIMING.AUTO_ROLL_MS * 2 + TIMING.ROLL_MS * 2 + TIMING.SETTLE_MS * 2 + 200)
+    expect(store().game!.pool).toEqual([6, 3])
+    expect(store().game!.phase).toBe('move')
+    expect(result.current.selectedDie).toBe(6)
+    act(() => result.current.selectDie(3))
+    expect(result.current.selectedDie).toBe(3)
+    expect(result.current.dieMoves.every((m) => m.die === 3)).toBe(true)
+    act(() => void result.current.pickMarble(0))
+    advance(3 * TIMING.STEP_MS + TIMING.SETTLE_MS + 100)
+    expect(store().actions.at(-1)).toEqual({ type: 'move', marbleId: 0, to: loop(33), actor: 'human', die: 3 })
+    // The 6 is left, and now it is the die in use.
+    expect(store().game!.pool).toEqual([6])
+    expect(result.current.selectedDie).toBe(6)
+  })
+
+  it('ignores a request for a die that has no move', () => {
+    store().updateSettings({ autoMove: false, houseRules: SIXES })
+    seed(TWO, { red: [loop(30)] })
+    const rng = diceSequence([6, 3], 2) // once, not per render
+    const { result } = renderHook(() => useStarHopGame(rng))
+    advance(TIMING.AUTO_ROLL_MS * 2 + TIMING.ROLL_MS * 2 + TIMING.SETTLE_MS * 2 + 200)
+    act(() => result.current.selectDie(5))
+    expect(result.current.selectedDie).toBe(6)
+  })
+
+  it('new games use the house rules from settings, and keep them', () => {
+    store().updateSettings({ houseRules: SIXES })
+    store().start(TWO, () => 0)
+    expect(store().game!.rules).toEqual(SIXES)
+    store().updateSettings({ houseRules: { ...SIXES, rollSixesFirst: false } })
+    expect(store().game!.rules).toEqual(SIXES)
+  })
+})
+
+describe('team play: the chosen teammate holds for the whole turn', () => {
+  it('auto-rolls the bonus roll for the same teammate, without asking again', () => {
+    store().updateSettings({ autoMove: true, autoRoll: true })
+    const TEAMS: PlayerConfig[] = [
+      { color: 'red', kind: 'human', team: 0 },
+      { color: 'orange', kind: 'bot', team: 1 },
+      { color: 'green', kind: 'human', team: 0 },
+      { color: 'blue', kind: 'bot', team: 1 },
+    ]
+    // Green has one marble out and the rest home, so every roll has a single move (auto move plays it).
+    seed(TEAMS, { red: [home(0), home(1), home(2), home(3)], green: [loop(50), home(1), home(2), home(3)] })
+    const g = store().game!
+    const custom = { ...g, players: g.players.map((p) => (p.color === 'red' ? { ...p, finishRank: 1 } : p)), winners: ['red' as const] }
+    useGameStore.setState({ initial: custom, game: custom })
+    const rng = diceSequence([6, 2], 3) // once, not per render
+    const { result } = renderHook(() => useStarHopGame(rng))
+    act(() => result.current.rollFor('green'))
+    advance(8000)
+    const rolls = store().actions.filter((a) => a.type === 'roll').slice(0, 2)
+    expect(rolls).toEqual([
+      { type: 'roll', value: 6, actor: 'human', for: 'green' },
+      { type: 'roll', value: 2, actor: 'human' },
+    ])
+    expect(store().game!.events.length).toBeGreaterThan(0)
+    expect(store().log.some((l) => l.text === 'Red rolled a 2 for Green')).toBe(true)
   })
 })

@@ -28,6 +28,7 @@ Star Hop has a harder domain than Ludo: a board that is a graph rather than a li
 | 12 | [Team play and deciding together online](12-teams.md) | Extending a rules engine without breaking replays, "who moves" versus "whose turn", protocol versioning, designing suggestions (not chat) between teammates |
 | 13 | [Sound design with Web Audio](13-sound.md) | The audio graph, synthesising tabla, flute and plucked strings, ragas and just intonation, a limiter, measuring loudness offline, testing audio code |
 | 14 | [Settings and information architecture](14-settings.md) | Separating preferences from destructive actions, decluttering a toolbar, native-first controls, settings that evolve without migrations, stacking modals |
+| 15 | [When requirements change: house rules](15-house-rules.md) | Asking before building, rules as recorded data, generalising one die to a pool, memoised graph search, relaxing an invariant precisely, bot planning with a measured time budget, versioning |
 
 ## A suggested two-week plan
 
@@ -45,7 +46,8 @@ Star Hop has a harder domain than Ludo: a board that is a graph rather than a li
 | 11 | Chapters 11 and 14. Play on a phone with move buttons off, then on; write down what changed |
 | 12 | Chapter 12. Trace one helper turn through every layer: engine, hook, protocol, UI |
 | 13 | Chapter 13. Make a new sound theme (say, a harmonium) and balance its loudness with the offline script |
-| 14 | Chapter 10. Mock interviews: the design prompts out loud, time-boxed, then the behavioural stories |
+| 14 | Chapter 15. Turn on each house rule and play; then read how each layer changed, and do exercise 4 on paper |
+| 15 | Chapter 10. Mock interviews: the design prompts out loud, time-boxed, then the behavioural stories |
 
 ## What carried over from Ludo, and what that proves
 

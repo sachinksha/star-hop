@@ -462,8 +462,9 @@ button.danger-outline { border-color: var(--danger); color: var(--danger); font-
 
 /* ---------- Move buttons (touch) ---------- */
 /* Under the board, in thumb reach. Each button is at least 48px: Material's touch target. */
-.move-pad { display: flex; gap: 0.4rem; margin-top: 0.55rem; }
-.pad-button, .pad-back { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; padding: 0.3rem 0.25rem; border-radius: 12px; border: 2px solid color-mix(in srgb, var(--arm, var(--accent)) 60%, var(--line)); background: var(--surface); line-height: 1.15; }
+/* Wraps onto more rows when there are many destinations (crossing the centre can offer a dozen). */
+.move-pad { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.55rem; }
+.pad-button, .pad-back { flex: 1 1 64px; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; padding: 0.3rem 0.25rem; border-radius: 12px; border: 2px solid color-mix(in srgb, var(--arm, var(--accent)) 60%, var(--line)); background: var(--surface); line-height: 1.15; }
 .pad-button:active:not(:disabled) { background: color-mix(in srgb, var(--arm, var(--accent)) 18%, var(--surface)); transform: scale(0.97); }
 .pad-number { font-size: 1.3rem; font-weight: 800; }
 .pad-sub { font-size: 0.72rem; color: var(--ink-soft); max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
@@ -477,6 +478,18 @@ button.danger-outline { border-color: var(--danger); color: var(--danger); font-
 .pad-roll { flex-direction: row; gap: 0.5rem; font-size: 1.15rem; }
 .marble-previewed .marble-halo { stroke: var(--star); stroke-width: 0.16; animation: none; }
 .badge-previewed .badge-body { fill: var(--star); }
+
+/* ---------- Dice pool (R22) and house rules ---------- */
+.dice-pool { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.35rem; width: 100%; }
+.dice-pool-label { font-size: 0.85rem; color: var(--ink-soft); }
+.dice-chip { display: inline-grid; place-items: center; padding: 3px; border-radius: 10px; border: 2px solid var(--line); background: var(--surface); }
+button.dice-chip { min-width: 44px; min-height: 44px; }
+.dice-chip-on { border-color: var(--arm, var(--accent)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--arm, var(--accent)) 35%, transparent); }
+.dice-chip:disabled { opacity: 0.35; }
+.mini-die { display: grid; grid-template-columns: repeat(3, 1fr); align-content: space-between; gap: 2px; width: 30px; height: 30px; padding: 4px; border-radius: 7px; background: #fff; border: 1px solid #c9c2b0; }
+.mini-die .pip { width: 100%; }
+.house-rules { max-width: 460px; margin: 0 auto 1.2rem; }
+.house-rules .setup-option { margin: 0 0 0.5rem; }
 
 /* ---------- Teams ---------- */
 .team-chip { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; margin-left: 0.35rem; padding: 0 0.25rem; border-radius: 6px; font-size: 0.72rem; font-weight: 800; vertical-align: 0.1em; color: var(--surface); background: var(--ink); }

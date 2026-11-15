@@ -5,23 +5,31 @@
  */
 import { describe, expect, it } from 'vitest'
 import { COLORS, spotKey } from './board'
+import { moverOf } from './teams'
 import { chooseBotMove } from './bot'
-import { applyMove, createGame, rollFor, type Rng } from './engine'
+import { applyMove, createGame, rollFor, rulesOf, type Rng } from './engine'
 import { replay } from './history'
-import { legalMovesFor } from './rules'
+import { legalMovesForPool, startOwner } from './rules'
 import { seeded } from './testUtils'
-import { MARBLES_PER_PLAYER, type Color, type GameAction, type GameState, type Move } from './types'
+import { MARBLES_PER_PLAYER, NO_HOUSE_RULES, type Color, type GameAction, type GameState, type HouseRules, type Move } from './types'
 
 function assertInvariants(g: GameState) {
-  const occupied = new Set<string>()
+  const occupied = new Map<string, Color[]>()
   for (const p of g.players) {
     expect(p.marbles).toHaveLength(MARBLES_PER_PLAYER)
     for (const m of p.marbles) {
       if (m.spot.kind === 'base') continue
       const key = spotKey(p.color, m.spot)
-      // At most one marble per hole outside base.
-      expect(occupied.has(key), `two marbles on ${key}`).toBe(false)
-      occupied.add(key)
+      const here = occupied.get(key) ?? []
+      if (here.length > 0) {
+        // Only a start hole under safe starts holds two: its owner and one visitor (R24).
+        const owner = startOwner(m.spot)
+        expect(rulesOf(g).safeStarts && owner !== null, `two marbles on ${key}`).toBe(true)
+        expect(here.length).toBe(1)
+        expect([...here, p.color]).toContain(owner)
+        expect(here).not.toContain(p.color)
+      }
+      occupied.set(key, [...here, p.color])
     }
     if (p.finishRank !== null && g.phase !== 'gameOver') {
       expect(p.marbles.every((m) => m.spot.kind === 'home')).toBe(true)
@@ -31,8 +39,7 @@ function assertInvariants(g: GameState) {
   expect(new Set(ranks).size).toBe(ranks.length)
   if (g.phase === 'move') {
     expect(g.legalMoves.length).toBeGreaterThan(0)
-    const player = g.players[g.currentIndex]!
-    expect(g.legalMoves).toEqual(legalMovesFor(g.players, player, g.dice!))
+    expect(g.legalMoves).toEqual(legalMovesForPool(g.players, moverOf(g), g.pool, rulesOf(g)))
   } else {
     expect(g.legalMoves).toEqual([])
   }
@@ -56,11 +63,12 @@ type Chooser = (g: GameState, rng: Rng) => Move
 const botChoice: Chooser = (g, rng) => chooseBotMove(g, rng)!
 const randomChoice: Chooser = (g, rng) => g.legalMoves[Math.floor(rng() * g.legalMoves.length)]!
 
-function play(colors: readonly Color[], seed: number, choose: Chooser, maxActions: number) {
+function play(colors: readonly Color[], seed: number, choose: Chooser, maxActions: number, rules: HouseRules = NO_HOUSE_RULES) {
   const rng = seeded(seed)
   const initial = createGame(
     colors.map((color) => ({ color, kind: 'bot' })),
     rng,
+    rules,
   )
   let g = initial
   const actions: GameAction[] = []
@@ -70,9 +78,9 @@ function play(colors: readonly Color[], seed: number, choose: Chooser, maxAction
       action = { type: 'roll', value: rollFor(g, rng, true), actor: 'bot' }
     } else {
       const move = choose(g, rng)
-      action = { type: 'move', marbleId: move.marbleId, to: move.to, actor: 'bot' }
+      action = { type: 'move', marbleId: move.marbleId, to: move.to, actor: 'bot', die: move.die }
     }
-    const next = action.type === 'roll' ? replay(g, [action]).state : applyMove(g, action.marbleId, action.to)
+    const next = action.type === 'roll' ? replay(g, [action]).state : applyMove(g, action.marbleId, action.to, action.die)
     expect(next, 'every chosen action is legal').not.toBe(g)
     assertHomeIsFinal(g, next)
     assertInvariants(next)
@@ -113,5 +121,30 @@ describe('random-move games (simulation)', () => {
     for (let seed = 1; seed <= 10; seed++) {
       play(TABLES[seed % TABLES.length]!, seed, randomChoice, 4000)
     }
+  }, SIM_TIMEOUT)
+})
+
+describe('house rules (simulation)', () => {
+  const ALL: HouseRules = { rollSixesFirst: true, crossCentre: true, safeStarts: true }
+
+  it('bot-only games with every house rule finish, keep every invariant, and replay exactly', () => {
+    for (const [i, colors] of [TABLES[0]!, TABLES[2]!, TABLES[4]!].entries()) {
+      for (let seed = 1; seed <= 3; seed++) {
+        const { initial, g, actions } = play(colors, seed * 31 + i, botChoice, 20000, ALL)
+        expect(g.phase).toBe('gameOver')
+        expect(replay(initial, actions).state).toEqual(g)
+      }
+    }
+  }, SIM_TIMEOUT)
+
+  it('random choices keep every invariant under each house rule on its own', () => {
+    const each: HouseRules[] = [
+      { ...NO_HOUSE_RULES, rollSixesFirst: true },
+      { ...NO_HOUSE_RULES, crossCentre: true },
+      { ...NO_HOUSE_RULES, safeStarts: true },
+    ]
+    each.forEach((rules, i) => {
+      for (let seed = 1; seed <= 4; seed++) play(TABLES[(seed + i) % TABLES.length]!, seed + 100 * i, randomChoice, 3000, rules)
+    })
   }, SIM_TIMEOUT)
 })

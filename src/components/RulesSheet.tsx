@@ -4,6 +4,7 @@ import { BASE_ENTRY_CHANCE, BONUS_ROLL, COMEBACK_CAP, COMEBACK_GRACE, COMEBACK_S
 import { IS_TOUCH } from '../hooks/useShortcuts'
 import { useGameStore } from '../store/gameStore'
 import { Icon } from './Icons'
+import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { Sheet } from './Sheet'
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
@@ -15,6 +16,8 @@ const [ENTRY_LOW, ENTRY_HIGH] = ENTRY_ROLLS
  */
 export function RulesContent() {
   const comebackDice = useGameStore((s) => s.settings.comebackDice)
+  // In a game, the rules it was started with; on setup, the rules a new game would use.
+  const houseRules = useGameStore((s) => s.game?.rules ?? s.settings.houseRules)
   const tap = IS_TOUCH ? 'Tap' : 'Click'
 
   return (
@@ -108,7 +111,8 @@ export function RulesContent() {
           <li>
             Once your marbles are all home you keep taking turns for your team. <b>Before you roll</b>, choose which
             teammate the roll is for, then move their marble. You can also <b>pass</b> if a roll might do more harm
-            than good. A {BONUS_ROLL} still rolls again, and you choose again.
+            than good. Your choice holds for the whole turn: a {BONUS_ROLL} rolls again for the same teammate. If your
+            move gets them home, the turn ends there.
           </li>
           <li>Online, your teammates can suggest who you should roll for. Their suggestions show on your buttons; you decide.</li>
           <li>A team finishes when everyone on it is home. The first team to finish wins, so help the teammate who is furthest behind.</li>
@@ -124,6 +128,35 @@ export function RulesContent() {
           {ENTRY_HIGH} goes up by {pct(COMEBACK_STEP)} for each further miss, up to {pct(COMEBACK_CAP)} (normally it's{' '}
           {pct(BASE_ENTRY_CHANCE)}). It applies to bots too, and you can turn it off on the setup screen.
         </p>
+      </section>
+
+      <section aria-labelledby="rules-house">
+        <h3 id="rules-house">House rules</h3>
+        <p>Optional rules, chosen on the setup screen and fixed for the whole game.</p>
+        <ul className="rules-house">
+          <li>
+            <b>{HOUSE_RULE_TEXT.rollSixesFirst.title}</b> <span className="rules-tag">{houseRules.rollSixesFirst ? 'On' : 'Off'}</span>
+            <br />
+            After a {BONUS_ROLL}, roll again straight away, and keep going until you roll something else. Then use every die,
+            one at a time, on any marbles, in the order you choose. A die no marble can use is lost, so plan the order. Bringing
+            a marble home ends your turn, even with dice left.
+          </li>
+          <li>
+            <b>{HOUSE_RULE_TEXT.crossCentre.title}</b> <span className="rules-tag">{houseRules.crossCentre ? 'On' : 'Off'}</span>
+            <br />
+            A marble that <b>starts its turn on a star</b> may step into the centre and out to any star, as well as round the
+            stars, in any mix, counting each step. It can never step straight back to the hole it just left. It can stop on a
+            star, walk the rest down that star's arm, end in the centre, or even come back to where it started. A marble that
+            starts in the centre still needs a 1 to leave.
+          </li>
+          <li>
+            <b>{HOUSE_RULE_TEXT.safeStarts.title}</b> <span className="rules-tag">{houseRules.safeStarts ? 'On' : 'Off'}</span>
+            <br />
+            Only the owner is safe on a start hole: your marble can't be bumped off your own start. Another player can land
+            there and share it with you, but they aren't safe: your next marble coming out of base bumps them, and so does any
+            other player landing there. Nobody can share a hole with their own marble.
+          </li>
+        </ul>
       </section>
 
       <section aria-labelledby="rules-controls">

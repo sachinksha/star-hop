@@ -176,6 +176,30 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
     return !!victim && !!active && isTeammate(victim, active)
   }
 
+  // Where each marble is drawn. Two marbles can share a hole only on a start
+  // hole under safe starts (R24): both are drawn smaller, side by side, so each
+  // stays visible and tappable (the same trick as stacked tokens in Ludo).
+  const placed = new Map<string, { p: Point; scale: number }>()
+  const byHole = new Map<string, string[]>()
+  for (const player of players) {
+    for (const m of player.marbles) {
+      const p = marblePoint(player.color, m.id, m.spot, bottom)
+      placed.set(`${player.color}:${m.id}`, { p, scale: 1 })
+      if (m.spot.kind !== 'base') {
+        const hole = `${p.x.toFixed(3)},${p.y.toFixed(3)}`
+        byHole.set(hole, [...(byHole.get(hole) ?? []), `${player.color}:${m.id}`])
+      }
+    }
+  }
+  for (const ids of byHole.values()) {
+    if (ids.length < 2) continue
+    ids.forEach((id, i) => {
+      const at = placed.get(id)!
+      const dx = (i - (ids.length - 1) / 2) * MARBLE_R * 0.95
+      placed.set(id, { p: { x: at.p.x + dx, y: at.p.y }, scale: 0.68 })
+    })
+  }
+
   /** A tap that missed every piece: give it to the nearest usable one, if the choice is clear. */
   const onBoardClick = (e: MouseEvent<SVGSVGElement>) => {
     if ((e.target as Element).closest('[data-hit]')) return // a piece's own handler took it
@@ -186,7 +210,7 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
     const candidates: { p: Point; value: Hit }[] = [
       ...active.marbles
         .filter((m) => pickSet.has(m.id))
-        .map((m) => ({ p: marblePoint(active.color, m.id, m.spot, bottom), value: { kind: 'marble', id: m.id } as Hit })),
+        .map((m) => ({ p: placed.get(`${active.color}:${m.id}`)!.p, value: { kind: 'marble', id: m.id } as Hit })),
       ...destinations.map((move) => ({ p: marblePoint(active.color, move.marbleId, move.to, bottom), value: { kind: 'move', move } as Hit })),
     ]
     const hit = snapTap(at, candidates)
@@ -218,7 +242,7 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
 
         {players.flatMap((player) =>
           player.marbles.map((m) => {
-            const p = marblePoint(player.color, m.id, m.spot, bottom)
+            const { p, scale } = placed.get(`${player.color}:${m.id}`)!
             const mine = player.color === activeColor
             const canPick = mine && pickSet.has(m.id)
             const isSelected = mine && selected === m.id
@@ -228,8 +252,9 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
                 key={`marble-${player.color}-${m.id}`}
                 className={`marble${canPick ? ' marble-pickable' : ''}${isSelected ? ' marble-selected' : ''}${mine && padMarble === m.id ? ' marble-previewed' : ''}`}
                 data-hit={canPick ? '' : undefined}
-                style={{ transform: `translate(${p.x}px, ${p.y}px)`, ['--arm' as string]: COLOR_HEX[player.color] }}
+                style={{ transform: `translate(${p.x}px, ${p.y}px)${scale !== 1 ? ` scale(${scale})` : ''}`, ['--arm' as string]: COLOR_HEX[player.color] }}
                 data-testid={`marble-${player.color}-${m.id}`}
+                data-shared={scale !== 1 ? '' : undefined}
                 role={canPick ? 'button' : undefined}
                 tabIndex={canPick ? 0 : undefined}
                 aria-label={canPick ? `Move ${label}` : undefined}

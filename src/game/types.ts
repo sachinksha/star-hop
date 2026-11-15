@@ -11,6 +11,26 @@ export type Color = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple'
 
 export type PlayerKind = 'human' | 'bot'
 
+/**
+ * Optional house rules (README R22-R24), chosen at setup and fixed for the
+ * game. They live in the game state, so replays, saved games and online
+ * guests all play by the same rules.
+ */
+export interface HouseRules {
+  /**
+   * R22: after a 6, make every bonus roll first (until a roll that isn't a 6),
+   * then use the dice in any order, one marble move per die.
+   */
+  rollSixesFirst: boolean
+  /** R23: a marble that starts its turn on a star may walk through the centre as well as round the stars. */
+  crossCentre: boolean
+  /** R24: a start hole is safe for its owner. Others may share it with the owner. */
+  safeStarts: boolean
+}
+
+export const NO_HOUSE_RULES: HouseRules = { rollSixesFirst: false, crossCentre: false, safeStarts: false }
+export const HOUSE_RULE_KEYS: readonly (keyof HouseRules)[] = ['rollSixesFirst', 'crossCentre', 'safeStarts']
+
 /** Number of marbles each player owns. */
 export const MARBLES_PER_PLAYER = 4
 
@@ -104,17 +124,21 @@ export interface Player {
  *  - 'hop'        : star to star (at least one hop), then possibly walking
  *  - 'toCenter'   : ends in the centre
  *  - 'fromCenter' : centre to a star, on a 1
+ *  - 'cross'      : house rule R23, from a star through the centre to another
+ *                   star (then possibly walking down its arm)
  */
-export type MoveVia = 'enter' | 'walk' | 'hop' | 'toCenter' | 'fromCenter'
+export type MoveVia = 'enter' | 'walk' | 'hop' | 'toCenter' | 'fromCenter' | 'cross'
 
 export interface Move {
+  /** The die this move uses. With several dice in the pool (R22) moves are listed for each. */
+  die: number
   marbleId: number
   from: Spot
   to: Spot
   /** Every hole stepped on in order, ending with `to`. Used for blocking and animation. */
   path: Spot[]
   via: MoveVia
-  /** Stars hopped before walking (0 unless via is 'hop'). */
+  /** Star-network steps (star to star, or via the centre) before walking. 0 for a plain walk. */
   hops: number
   /** The marble on `to` (an opponent's, or in team play possibly a teammate's), which goes back to its base. */
   bumped: { color: Color; marbleId: number } | null
@@ -134,13 +158,22 @@ export interface GameState {
    * Set by the roll and cleared when the turn moves on.
    */
   playingFor: Color | null
-  /** Die value for the move being chosen (null when not waiting on a move). */
+  /** The most recent roll this turn, for display (null when the turn has moved on). */
   dice: number | null
+  /**
+   * Dice rolled this turn and not used yet. Normally one die. With R22 every
+   * bonus roll after a 6 is banked here first, and moves then use them in any
+   * order.
+   */
+  pool: number[]
+  /** House rules for this game, fixed at setup. */
+  rules: HouseRules
   phase: Phase
   /**
    * Legal choices for the current player, empty unless phase is 'move'.
-   * Ordered by marble id, then for each marble with the destination closest
-   * to home first and the centre last. The UI numbers destinations in this order.
+   * Grouped by die (in pool order), then by marble id, then for each marble
+   * with the destination closest to home first and the centre last. The UI
+   * numbers one die's destinations in this order.
    */
   legalMoves: Move[]
   /** Colours in finishing order, filled in as players finish. */
@@ -158,8 +191,11 @@ export type GameEvent =
   | { type: 'move'; move: Move; color: Color; by?: Color }
   /** `friendly` marks a teammate's marble bumped in team play (allowed, but best avoided). */
   | { type: 'bump'; color: Color; victim: Color; friendly?: boolean }
-  /** The roll allowed no move. `rollAgain` is true after a 6 (R6). */
-  | { type: 'noMoves'; color: Color; rollAgain: boolean }
+  /**
+   * The roll allowed no move. `rollAgain` is true after a 6 (R6). With R22,
+   * `unused` lists dice left over that no marble could use (they are lost).
+   */
+  | { type: 'noMoves'; color: Color; rollAgain: boolean; unused?: number[] }
   | { type: 'finish'; color: Color; rank: number }
   | { type: 'gameOver'; winners: Color[]; early?: boolean }
   /** A finished player chose not to roll for their team this turn. */
@@ -182,7 +218,8 @@ export type GameAction =
   | { type: 'roll'; value: number; actor: PlayerKind; for?: Color }
   /** A finished player in team play skips their roll. */
   | { type: 'pass'; actor: PlayerKind }
-  | { type: 'move'; marbleId: number; to: Spot; actor: PlayerKind }
+  /** `die` picks which pooled die the move uses (R22). Optional: the first matching die otherwise. */
+  | { type: 'move'; marbleId: number; to: Spot; actor: PlayerKind; die?: number }
   /** Ends the game early, ranking unfinished seats by progress. */
   | { type: 'end'; actor: PlayerKind }
   /** A bot takes over a seat (an online player who left). The profile is recorded for replays. */

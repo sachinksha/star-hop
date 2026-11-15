@@ -10,7 +10,7 @@ Code: [teams.ts](../src/game/teams.ts), team parts of [engine.ts](../src/game/en
 | --- | --- | --- |
 | R17 | 4 players as 2 pairs; 6 as 2 teams of 3 or 3 pairs. Seats alternate | Alternating seats means alternating turns, so no team gets two turns in a row, and partners sit opposite as in traditional partner games |
 | R18 | Landing on a teammate bumps it, as with an opponent | The traditional rule. The first version blocked such landings instead, which felt kind but changed the game: a teammate became a wall. Allowing it and teaching players and bots to *avoid* it keeps the strategy of the original |
-| R19 | A finished player keeps taking turns, choosing before the roll which teammate it is for | Otherwise a finished player just watches. Choosing *before* the roll keeps it a decision, not a lucky pick after seeing the number |
+| R19 | A finished player keeps taking turns, choosing before the first roll which teammate the turn is for. The choice holds for bonus rolls, and a move that brings the teammate home ends the turn | Otherwise a finished player just watches. Choosing *before* the roll keeps it a decision, not a lucky pick after seeing the number. (The first version asked again after every 6; see "A rule that changed" below) |
 | R20 | That player may pass | A forced move can wreck a teammate's safe position. Only finished players may pass, so the racing game is unchanged |
 | R21 | A team finishes when all members have | The natural team goal |
 
@@ -67,6 +67,15 @@ export const takesTurns = (players: Player[], p: Player) => !sideDone(players, p
 The game-over rule generalised the same way: game over when at most one *side* still has unfinished members.
 
 The safety net was the same as for everything else in this engine ([chapter 1](01-domain-modelling.md)). Seeded bot-only team games are played to the end, then **replayed from the action log and compared** with the live state. If the new field or action broke determinism anywhere, that test would fail.
+
+## A rule that changed: the choice sticks for the whole turn
+
+The first version cleared `playingFor` after every move, so a finished player who rolled a 6 for Green was asked again who the bonus roll was for. Playing it showed that wasn't how the game is played at a table: you commit to a teammate for your turn. Two changes:
+
+- `playingFor` now survives the bonus roll and is cleared only when the turn passes, and `isHelperTurn` is true only while it is still unset. A bonus roll for the same teammate needs no `for` on the action.
+- **A move that finishes the mover ends the turn**, whoever's marbles they were. Before, only a roller finishing their own marbles lost the bonus.
+
+The test that encoded the old behaviour ("gives the roller another roll after a 6, choosing again") failed the moment the engine changed. That is the point of tests that state rules in plain words: when the specification changes, the failing test names exactly which promise you broke. It was rewritten to state the new rule. [Chapter 15](15-house-rules.md) follows this change and the house rules that came with it.
 
 ## The reserved field paid off
 

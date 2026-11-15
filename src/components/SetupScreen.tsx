@@ -3,7 +3,8 @@ import { COLORS, armOf } from '../game/board'
 import { MAX_PLAYERS, MIN_PLAYERS, displayNames } from '../game/engine'
 import { validateNames } from '../game/names'
 import { TEAM_OPTIONS, assignTeams, teamLabel } from '../game/teams'
-import { MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
+import { HOUSE_RULE_KEYS, MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
+import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { useGameStore } from '../store/gameStore'
 import { COLOR_HEX, COLOR_NAME } from './colors'
 import { RulesButton } from './RulesSheet'
@@ -62,6 +63,7 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
     Object.fromEntries(valid0?.filter((c) => c.name && !c.remote).map((c) => [c.color, c.name!]) ?? []),
   )
   const comebackDice = useGameStore((s) => s.settings.comebackDice)
+  const houseRules = useGameStore((s) => s.settings.houseRules)
   const updateSettings = useGameStore((s) => s.updateSettings)
 
   const count = arms.length
@@ -236,15 +238,32 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
         </p>
       )}
 
-      <label className="setup-option">
-        <input type="checkbox" checked={comebackDice} onChange={(e) => updateSettings({ comebackDice: e.target.checked })} />
-        <span>
-          <strong>Comeback dice</strong>
-          <span className="setup-option-hint">
-            A player with nothing on the board who misses 3 entry rolls in a row gets a growing chance of a 1 or 6. Applies to bots too.
+      <fieldset className="house-rules">
+        <legend>House rules</legend>
+        <p className="setup-hint">Optional rules, fixed for the whole game. Everyone (bots too) plays by them.</p>
+        <label className="setup-option">
+          <input type="checkbox" checked={comebackDice} onChange={(e) => updateSettings({ comebackDice: e.target.checked })} />
+          <span>
+            <strong>Comeback dice</strong>
+            <span className="setup-option-hint">
+              A player with nothing on the board who misses 3 entry rolls in a row gets a growing chance of a 1 or 6.
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+        {HOUSE_RULE_KEYS.map((key) => (
+          <label key={key} className="setup-option">
+            <input
+              type="checkbox"
+              checked={houseRules[key]}
+              onChange={(e) => updateSettings({ houseRules: { ...houseRules, [key]: e.target.checked } })}
+            />
+            <span>
+              <strong>{HOUSE_RULE_TEXT[key].title}</strong>
+              <span className="setup-option-hint">{HOUSE_RULE_TEXT[key].hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
 
       {error && (
         <p className="field-error" role="alert">

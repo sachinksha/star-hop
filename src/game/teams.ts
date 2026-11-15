@@ -9,8 +9,8 @@
  *  - Landing on a teammate's marble bumps it, as with anyone else (the
  *    traditional rule). It is legal, but players and bots try to avoid it.
  *  - A player whose marbles are all home keeps taking turns while a teammate
- *    is still playing. Before rolling they choose which unfinished teammate
- *    the roll is for, or pass.
+ *    is still playing. Before their first roll they choose which unfinished
+ *    teammate the turn is for (it holds for any bonus rolls), or pass.
  *  - A team finishes when all its members have. The first team to finish wins.
  */
 import type { Color, GameState, Player } from './types'
@@ -77,9 +77,13 @@ export function helperTargets(state: GameState): Player[] {
   return out
 }
 
-/** A finished player is about to roll for a teammate (or pass). */
+/**
+ * A finished player must choose which teammate to roll for (or pass): the
+ * start of their turn. Once chosen, the choice holds for every bonus roll of
+ * that turn (`playingFor`), so this is false again until the turn passes.
+ */
 export function isHelperTurn(state: GameState): boolean {
-  return state.phase === 'roll' && helperTargets(state).length > 0
+  return state.phase === 'roll' && !state.playingFor && helperTargets(state).length > 0
 }
 
 /** The player whose marbles move this turn: a teammate being rolled for, or the roller. */

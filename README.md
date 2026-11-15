@@ -36,12 +36,22 @@ The gear button (on setup, the join screen and in the game) opens Settings. Open
 
 Everything except the game actions is remembered between visits.
 
+### House rules
+
+Three optional rules from childhood games, switched on in the **House rules** section of the setup screen (next to Comeback dice). They are fixed for the whole game, apply to bots too, and are shown in the rules sheet and in Settings → This game.
+
+- **Roll all your sixes first (R22):** after a 6 you keep rolling, and the dice are banked ("Banked: ⚅ ⚅"). Then you choose which die to use for each move: tap a die (or press **D**) to switch, then pick a marble as usual. Plan the order: a die nothing can use is lost.
+- **Walk across the centre (R23):** a marble starting on a star can go through the centre to any star, round the stars, or a mix, then down an arm. A single roll can offer a dozen destinations; the move buttons wrap onto extra rows.
+- **Safe start holes (R24):** your start hole is safe for you. Others can share it with you, but only you are safe there: your next marble out of base bumps a visitor, and so does any other player landing on it. Marbles sharing a hole are drawn smaller, side by side.
+
+Bots understand all three. With several dice banked they plan the order with a short look-ahead (trying the most promising moves for each die in turn), in their own persona's style.
+
 ### Teams
 
 With 4 players you can play as 2 teams of 2; with 6, as 2 teams of 3 or 3 teams of 2. Teammates sit alternately round the board, so turns alternate between teams.
 
 - Landing on a teammate's marble bumps it, just like an opponent's (the traditional rule). It's legal but sets your team back: the board marks such moves in amber ("Teammate!"), and bots avoid them unless there's no other move.
-- When your marbles are all home you keep your turns: before rolling, choose which unfinished teammate the roll is for (or **pass**), then move their marble.
+- When your marbles are all home you keep your turns: before rolling, choose which unfinished teammate the turn is for (or **pass**), then move their marble. The choice holds for the whole turn, bonus rolls included.
 - Online, teammates can **suggest** who you should roll for, or that you pass. Suggestions show on your buttons like votes; only your team sees them, and you decide.
 - The first team with everyone home wins.
 
@@ -96,9 +106,12 @@ Rules marked *house rule* are where the traditional rules are silent or vague. T
 | R16 | A player who finishes on a 6 does not roll again: with all 4 marbles home, every home hole is full and nothing can move (*house rule*) |
 | R17 | **Teams** (optional): 4 players as 2 pairs, or 6 players as 2 teams of 3 or 3 pairs. Seats alternate between teams round the board |
 | R18 | Landing on a teammate's marble **bumps it**, as with an opponent (the traditional rule), including on your start hole. Teammates can be jumped like anyone else. It is legal but best avoided: the UI flags such moves and bots avoid them |
-| R19 | A player with all marbles home keeps taking turns while a teammate is still playing. Before rolling they choose which unfinished teammate the roll is for, and move that teammate's marble. A 6 rolls again, choosing again. Comeback dice follow the teammate whose marbles move |
+| R19 | A player with all marbles home keeps taking turns while a teammate is still playing. Before their first roll they choose which unfinished teammate the turn is for, and move that teammate's marbles. The choice holds for the whole turn: a 6 rolls again for the same teammate. A move that brings the teammate (or the player) home ends the turn, even with a bonus roll or dice left. Comeback dice follow the teammate whose marbles move |
 | R20 | On such a turn the player may **pass** instead of rolling (*house rule*). Players who are still racing can't pass |
 | R21 | A team finishes when all its members have. Play continues until at most one team is left, which is ranked last; ending early ranks teams by their last member's place |
+| R22 | **Roll all your sixes first** (*house rule*, off by default): after a 6, roll again straight away until a roll isn't a 6. Then use the dice one at a time, on any marbles, in any order. Each step you must use a die if any can move; dice the chosen order leaves unusable are lost. Bringing your last marble home ends the turn. No extra roll after using a 6 (the bonus rolls were already made) |
+| R23 | **Walk across the centre** (*house rule*, off by default): a marble that starts its turn on a star walks a network of the stars and the centre, one hole per step: clockwise star to star, star to centre, centre to any star, never straight back to the hole it just left, and never past its own marbles. It may stop on a star and walk the rest down that star's arm, end in the centre, or come back to its own star. A marble starting in the centre still needs a 1 |
+| R24 | **Safe start holes** (*house rule*, off by default): a marble can't be bumped off its owner's start hole. Another player may land there and share it with the owner. The owner bringing a marble out of base still bumps whoever sits on their start. Nobody shares a hole with their own marble, and a visitor on someone else's start is not safe |
 
 **Online:** undo is off, and games never pause by themselves (one player switching tabs would stop everyone).
 
@@ -139,7 +152,7 @@ The design is the same as the Ludo game's (see `LEARNINGS.md` in that project):
 
 ## Learning guide
 
-[docs/](docs/README.md) is a study guide that uses this codebase to prepare for senior and principal frontend interviews. It builds on the Ludo game's guide and covers what is new here: graph-shaped domain modelling, SVG geometry, the native-`<dialog>` bottom sheet, a mobile debugging case study, theming, persistence, probability in the bots, React patterns, modern tooling, touch-target design, team play with collaborative online decisions, sound synthesis and settings design.
+[docs/](docs/README.md) is a study guide that uses this codebase to prepare for senior and principal frontend interviews. It builds on the Ludo game's guide and covers what is new here: graph-shaped domain modelling, SVG geometry, the native-`<dialog>` bottom sheet, a mobile debugging case study, theming, persistence, probability in the bots, React patterns, modern tooling, touch-target design, team play with collaborative online decisions, sound synthesis, settings design, and how the codebase adapted when house rules were added. [LEARNINGS.md](LEARNINGS.md) records the house rules precisely and how to carry them to the Ludo game.
 
 ## Licence
 

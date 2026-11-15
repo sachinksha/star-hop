@@ -11,9 +11,9 @@
  * reach maths.
  */
 import { progressOf, spotKey, stepsToHome, isStar } from './board'
-import { legalMovesFor, movesForMarble, playersAfterMove } from './rules'
+import { isSafeFor, legalMovesFor, legalMovesForPool, movesForMarble, occupancy, playersAfterMove } from './rules'
 import { helperTargets, isTeammate, moverOf, sameSide } from './teams'
-import type { BotProfile, BotWeights, Color, GameState, Move, Persona, Player, Spot } from './types'
+import { NO_HOUSE_RULES, type BotProfile, type BotWeights, type Color, type GameState, type HouseRules, type Move, type Persona, type Player, type Spot } from './types'
 
 /** Random source returning a number in [0, 1). */
 type Rng = () => number
@@ -68,39 +68,42 @@ type Reach = Map<string, number>
 
 const DIE_FACES = [1, 2, 3, 4, 5, 6] as const
 
-/** Reach maps per player, cached per players array (states are immutable). */
-const reachCache = new WeakMap<Player[], Map<Color, Reach>>()
+/** Reach maps per player, cached per players array (states are immutable) and house rules. */
+const reachCache = new WeakMap<Player[], Map<string, Reach>>()
+const rulesKey = (r: HouseRules) => `${+r.rollSixesFirst}${+r.crossCentre}${+r.safeStarts}`
 
-function reachOf(players: Player[], player: Player): Reach {
+function reachOf(players: Player[], player: Player, rules: HouseRules): Reach {
   let byColor = reachCache.get(players)
   if (!byColor) {
     byColor = new Map()
     reachCache.set(players, byColor)
   }
-  const cached = byColor.get(player.color)
+  const cacheKey = `${player.color}|${rulesKey(rules)}`
+  const cached = byColor.get(cacheKey)
   if (cached) return cached
   const reach: Reach = new Map()
   for (const d of DIE_FACES) {
-    const landed = new Set(legalMovesFor(players, player, d).map((m) => spotKey(player.color, m.to)))
+    const landed = new Set(legalMovesFor(players, player, d, rules).map((m) => spotKey(player.color, m.to)))
     for (const key of landed) reach.set(key, (reach.get(key) ?? 0) + 1 / 6)
   }
-  byColor.set(player.color, reach)
+  byColor.set(cacheKey, reach)
   return reach
 }
 
 /**
  * Chance that some opponent of `color` can bump a marble on `spot` next turn,
- * treating opponents as independent. Base and home are never at risk, and
- * teammates are not opponents.
+ * treating opponents as independent. Base and home are never at risk, nor is
+ * the owner's start hole under safe starts (R24), and teammates are not
+ * opponents.
  */
-export function bumpRisk(players: Player[], color: Color, spot: Spot): number {
-  if (spot.kind === 'base' || spot.kind === 'home') return 0
+export function bumpRisk(players: Player[], color: Color, spot: Spot, rules: HouseRules = NO_HOUSE_RULES): number {
+  if (spot.kind === 'base' || spot.kind === 'home' || isSafeFor(color, spot, rules)) return 0
   const key = spotKey(color, spot)
   const me = players.find((p) => p.color === color)
   let safe = 1
   for (const p of players) {
     if (p.finishRank !== null || (me ? sameSide(p, me) : p.color === color)) continue
-    safe *= 1 - (reachOf(players, p).get(key) ?? 0)
+    safe *= 1 - (reachOf(players, p, rules).get(key) ?? 0)
   }
   return 1 - safe
 }
@@ -111,15 +114,15 @@ export function bumpRisk(players: Player[], color: Color, spot: Spot): number {
  * may need to land is in their way: they might be forced to bump it, or give
  * up a good move to avoid it.
  */
-export function teammateCrowding(players: Player[], color: Color, spot: Spot): number {
-  if (spot.kind === 'base' || spot.kind === 'home') return 0
+export function teammateCrowding(players: Player[], color: Color, spot: Spot, rules: HouseRules = NO_HOUSE_RULES): number {
+  if (spot.kind === 'base' || spot.kind === 'home' || isSafeFor(color, spot, rules)) return 0
   const me = players.find((p) => p.color === color)
   if (!me || me.team === null) return 0
   const key = spotKey(color, spot)
   let clear = 1
   for (const p of players) {
     if (p.finishRank !== null || !isTeammate(p, me)) continue
-    clear *= 1 - (reachOf(players, p).get(key) ?? 0)
+    clear *= 1 - (reachOf(players, p, rules).get(key) ?? 0)
   }
   return 1 - clear
 }
@@ -129,14 +132,15 @@ export function teammateCrowding(players: Player[], color: Color, spot: Spot): n
  * could bump next turn: for each opponent marble, the chance of a die value
  * that lets it land there. Teammates' marbles are not targets.
  */
-export function bumpChances(players: Player[], color: Color, marbleId: number): number {
+export function bumpChances(players: Player[], color: Color, marbleId: number, rules: HouseRules = NO_HOUSE_RULES): number {
   const player = players.find((p) => p.color === color)
   const marble = player?.marbles.find((m) => m.id === marbleId)
   if (!player || !marble) return 0
   const friends = new Set(players.filter((p) => sameSide(p, player)).map((p) => p.color))
   const hits = new Map<string, number>()
+  const occ = occupancy(players)
   for (const d of DIE_FACES) {
-    for (const move of movesForMarble(players, player, marble, d)) {
+    for (const move of movesForMarble(players, player, marble, d, occ, rules)) {
       if (!move.bumped || friends.has(move.bumped.color)) continue
       const key = `${move.bumped.color}:${move.bumped.marbleId}`
       hits.set(key, (hits.get(key) ?? 0) + 1 / 6)
@@ -175,6 +179,7 @@ export function scoreMove(state: GameState, move: Move, rng: Rng = () => 0): num
   const roller = state.players[state.currentIndex]
   if (!roller) return 0
   const player = moverOf(state)
+  const rules = state.rules ?? NO_HOUSE_RULES
   const w = roller.bot?.weights ?? PERSONA_WEIGHTS.balanced
   const color = player.color
   let score = 0
@@ -197,27 +202,79 @@ export function scoreMove(state: GameState, move: Move, rng: Rng = () => 0): num
   if (move.to.kind === 'center') score += w.center
 
   // Escaping: leaving a hole opponents can reach now.
-  score += w.danger * bumpRisk(state.players, color, move.from) * stake(color, move.from)
+  score += w.danger * bumpRisk(state.players, color, move.from, rules) * stake(color, move.from)
 
   // Exposure and pressure, judged on the board after the move.
   const after = playersAfterMove(state.players, color, move)
-  score -= w.danger * bumpRisk(after, color, move.to) * stake(color, move.to)
+  score -= w.danger * bumpRisk(after, color, move.to, rules) * stake(color, move.to)
   // Team play: stay out of teammates' way.
-  score -= CROWDING * w.danger * teammateCrowding(after, color, move.to) * stake(color, move.to)
-  if (move.to.kind !== 'home') score += w.attack * Math.min(2, bumpChances(after, color, move.marbleId))
+  score -= CROWDING * w.danger * teammateCrowding(after, color, move.to, rules) * stake(color, move.to)
+  if (move.to.kind !== 'home') score += w.attack * Math.min(2, bumpChances(after, color, move.marbleId, rules))
 
   return score + rng() * w.noise
+}
+
+/** How many of the best-looking moves are explored at each step of a dice plan. */
+const PLAN_BEAM = 3
+/** With two dice, how many first moves get a full follow-up. */
+const PLAN_FIRST_MOVES = 12
+
+/**
+ * The position after `move`, with that die used up: what the next move of the
+ * same turn would face (R22). A move that finishes the mover ends the turn, so
+ * nothing follows it.
+ */
+function afterPlanStep(state: GameState, move: Move): GameState {
+  const mover = moverOf(state)
+  const players = playersAfterMove(state.players, mover.color, move)
+  const moved = players.find((p) => p.color === mover.color)!
+  const pool = [...(state.pool ?? [])]
+  pool.splice(pool.indexOf(move.die), 1)
+  const done = moved.marbles.every((m) => m.spot.kind === 'home')
+  const legalMoves = done ? [] : legalMovesForPool(players, moved, pool, state.rules ?? NO_HOUSE_RULES)
+  return { ...state, players, pool: done ? [] : pool, legalMoves, phase: legalMoves.length > 0 ? 'move' : 'roll' }
+}
+
+/**
+ * Best total score of the rest of a dice plan from `state`: the sum of each
+ * step's score, exploring the PLAN_BEAM best-looking moves at each step. Dice
+ * no marble can use add nothing, so plans that use every die tend to win.
+ */
+function planValue(state: GameState, depth: number): number {
+  if (depth === 0 || state.legalMoves.length === 0) return 0
+  const ranked = state.legalMoves
+    .map((move) => ({ move, score: scoreMove(state, move) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, PLAN_BEAM)
+  return Math.max(...ranked.map(({ move, score }) => score + planValue(afterPlanStep(state, move), depth - 1)))
 }
 
 /**
  * Picks the bot's move: the highest score, with a small random nudge from
  * `rng`. Exact ties keep the earlier move in legal-move order.
+ *
+ * With several dice banked (R22) the order matters, like planning a sequence
+ * in chess: using a 3 first might clear the way for the 6, or bump the marble
+ * the 6 would otherwise have to pass. So each candidate's score adds the best
+ * follow-up plan for the remaining dice (a small beam search), judged with the
+ * bot's own persona weights.
  */
 export function chooseBotMove(state: GameState, rng: Rng = Math.random): Move | null {
+  // Look at most two dice ahead: deeper plans cost far more and rarely change the first move.
+  const extraDice = Math.min(2, Math.max(0, (state.pool?.length ?? 1) - 1))
   let best: Move | null = null
   let bestScore = -Infinity
-  for (const move of state.legalMoves) {
-    const score = scoreMove(state, move, rng)
+  const candidates =
+    extraDice === 0
+      ? state.legalMoves.map((move) => ({ move, score: scoreMove(state, move, rng) }))
+      : state.legalMoves
+          .map((move) => ({ move, score: scoreMove(state, move, rng) }))
+          .sort((a, b) => b.score - a.score)
+          // Follow up only the most promising first moves: 12 with two dice, 8 for longer plans.
+          // Exploring every first move cost up to a quarter of a second with 50+ moves.
+          .slice(0, extraDice === 1 ? PLAN_FIRST_MOVES : PLAN_BEAM * 2)
+          .map(({ move, score }) => ({ move, score: score + planValue(afterPlanStep(state, move), extraDice) }))
+  for (const { move, score } of candidates) {
     if (score > bestScore) {
       best = move
       bestScore = score
@@ -238,7 +295,7 @@ export function chooseHelperTarget(state: GameState): Color | null {
   for (const target of helperTargets(state)) {
     let total = 0
     for (const d of DIE_FACES) {
-      const legalMoves = legalMovesFor(state.players, target, d)
+      const legalMoves = legalMovesFor(state.players, target, d, state.rules ?? NO_HOUSE_RULES)
       const trial: GameState = { ...state, phase: 'move', dice: d, playingFor: target.color, legalMoves }
       const top = legalMoves.reduce((m, move) => Math.max(m, scoreMove(trial, move)), -Infinity)
       total += legalMoves.length > 0 ? top : 0

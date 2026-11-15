@@ -1,4 +1,4 @@
-import { COLORS, SECTOR_LENGTH, isStar, stepsToHome } from './board'
+import { COLORS, SECTOR_LENGTH, isStar, sameSpot, stepsToHome } from './board'
 import { isTeammate, teamLabel } from './teams'
 import type { Color, GameEvent, Move, Player } from './types'
 
@@ -25,6 +25,10 @@ function describeMove(move: Move): string {
       const stars = move.hops === 1 ? '1 star' : `${move.hops} stars`
       const walked = move.path.length - move.hops
       return walked > 0 ? `hopped ${stars}, then walked ${walked}` : `hopped ${stars}`
+    }
+    case 'cross': {
+      const walked = move.path.length - move.hops
+      return walked > 0 ? `crossed the centre to a star, then walked ${walked}` : 'crossed the centre to a star'
     }
     case 'walk':
       if (move.reachesHome) return 'moved a marble into home'
@@ -53,6 +57,10 @@ export function describeEvent(event: GameEvent): string | null {
         ? `${COLOR_NAME[event.color]} bumped teammate ${COLOR_NAME[event.victim]}'s marble back to base`
         : `${COLOR_NAME[event.color]} bumped a ${COLOR_NAME[event.victim]} marble back to base`
     case 'noMoves':
+      if (event.unused && event.unused.length > 0) {
+        const dice = event.unused.join(', ')
+        return `${COLOR_NAME[event.color]} can't use ${event.unused.length === 1 ? 'a' : 'the'} ${dice} and loses ${event.unused.length === 1 ? 'it' : 'them'}`
+      }
       return event.rollAgain
         ? `${COLOR_NAME[event.color]} has no legal move, but rolls again after a 6`
         : `${COLOR_NAME[event.color]} has no legal move`
@@ -93,6 +101,15 @@ export function destinationLabel(move: Move, mover: Color, players: Player[]): s
       const walked = move.path.length - move.hops
       where = walked > 0 ? `Hop ${stars}, then ${holes(walked)}` : `Hop ${stars}`
       if (walked === 0 && move.to.kind === 'loop') where += ` to ${starName(move.to.pos, mover)}`
+      break
+    }
+    case 'cross': {
+      // The last star the path reaches before any walk down an arm.
+      const lastStar = move.path.slice(0, move.hops).reverse().find((s) => s.kind === 'loop')
+      const walked = move.path.length - move.hops
+      const star = lastStar?.kind === 'loop' ? starName(lastStar.pos, mover) : 'a star'
+      where = sameSpot(move.to, move.from) ? 'Round through the centre and back to this star' : `Through the centre to ${star}`
+      if (walked > 0) where += `, then ${holes(walked)}`
       break
     }
     case 'walk':
@@ -148,6 +165,11 @@ export function shortDestination(move: Move): string {
     case 'hop': {
       const walked = move.path.length - move.hops
       return walked > 0 ? `Hop ${move.hops}★ +${walked}` : `Hop ${move.hops}★`
+    }
+    case 'cross': {
+      const walked = move.path.length - move.hops
+      if (sameSpot(move.to, move.from)) return 'Stay ★'
+      return walked > 0 ? `Via centre +${walked}` : 'Via centre ★'
     }
     case 'walk':
       return move.to.kind === 'home' ? `Home ${move.to.slot + 1}` : `Walk ${move.path.length}`

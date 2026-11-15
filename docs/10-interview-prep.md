@@ -81,6 +81,12 @@ Name the new concept in the model (`playingFor`, `moverOf`), then audit every us
 **Q: Design how teammates on different devices agree on a decision.**
 Compare free chat, binding votes and preset suggestions. Advisory presets win for a fast game: safe, language-light, no moderation. Each suggestion is tagged with the position it was given in so it expires on its own, replaces the sender's previous one, goes to the team only, and is validated by the authority like any input. Be honest that a host-authoritative design can't keep secrets from the host. ([Chapter 12](12-teams.md))
 
+**Q: A product owner adds three new rules to a feature you shipped. Walk me through it.**
+Ask about edge cases first (one answer here rewrote a rule). Decide where each rule lives: anything that changes what is legal travels with the data (here, `GameState.rules`), not in user settings. Generalise rather than branch (one die became a pool of one, so old tests covered the new path). Relax invariants precisely. Measure the cost (bot planning worst case 404 → 129 ms). Version the save format and protocol. ([Chapter 15](15-house-rules.md))
+
+**Q: When is memoising a recursive search correct?**
+When the result from a state depends only on the memo key. The centre-crossing search memoises (hole, previous hole, steps left), which is only valid because blocked holes are refused during the search; checking blocks afterwards on the whole path would make the memo drop valid paths. ([Chapter 15](15-house-rules.md))
+
 **Q: How does memoisation interact with immutability?**
 With immutable data, identity implies equality, so a `WeakMap` keyed by the object is a correct, leak-free cache. The bot's reach maps are cached per `players` array this way. Mutation would make the cache silently wrong, and the same reasoning underlies `React.memo`, `useMemo` and selector libraries.
 
@@ -102,6 +108,7 @@ Use this structure: requirements and constraints → API or data model → archi
 - **Proving an abstraction:** Ludo's network layer reused nearly unchanged ([README table](README.md#what-carried-over-from-ludo-and-what-that-proves)). Talk about resisting early extraction and letting the second use decide.
 - **Choosing the platform over a library:** `<dialog>` instead of a modal library. What you gained (bundle, inertness, focus), what you built yourself (animation, gestures), and when you would switch to a library (snap points, nested sheets, a design-system mandate).
 - **A layout bug no unit test could catch:** a hidden radio whose containing block was the dialog, so focusing it scrolled an `overflow: hidden` dialog. Measured `scrollTop`, fixed the cause (`position: relative`) and the class of bug (`overflow: clip`). ([Chapter 14](14-settings.md))
+- **Changing requirements well:** house rules from someone's childhood. Asked four edge-case questions before coding (one rewrote the safe-start rule), made rules part of the recorded state, generalised one die to a pool, and cut the bots' worst decision time threefold after measuring. ([Chapter 15](15-house-rules.md))
 - **Raising the bar safely:** turning on `noUncheckedIndexedAccess` and treating each `!` as a reviewable claim.
 - **Solving a usability problem with data:** fat-finger taps. Measured 17px spacing against 44–48px guidance, ruled out "just make it bigger", combined snapping (research: the bubble cursor) with the user's own idea of numbered buttons, and added safety limits so the clever part can never play a wrong move.
 - **Extending a mature design:** team play. A reserved field paid off, one migration and one protocol bump, and an audit for code that confused "whose turn" with "whose marbles".

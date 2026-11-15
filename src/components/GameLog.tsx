@@ -44,6 +44,7 @@ export function GameLog() {
 
 /** Keyboard help. Hidden on touch-only devices. */
 export function KeyboardHelp() {
+  const bankedDice = useGameStore((s) => s.game?.rules?.rollSixesFirst ?? false)
   if (IS_TOUCH) return null
   return (
     <section className="side-card">
@@ -51,8 +52,13 @@ export function KeyboardHelp() {
       <dl className="shortcuts">
         <dt><kbd>Space</kbd></dt><dd>Roll the die</dd>
         <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Pick a marble</dd>
-        <dt><kbd>1</kbd>–<kbd>7</kbd></dt><dd>Then pick where it goes (numbered on the board)</dd>
+        <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Then pick where it goes (numbered on the board)</dd>
         <dt><kbd>Esc</kbd></dt><dd>Back to picking a marble</dd>
+        {bankedDice && (
+          <>
+            <dt><kbd>D</kbd></dt><dd>Switch die (when several are banked)</dd>
+          </>
+        )}
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Undo / redo</dd>
         <dt><kbd>P</kbd></dt><dd>Pause / resume</dd>
         <dt><kbd>L</kbd></dt><dd>Show / hide game log</dd>

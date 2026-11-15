@@ -137,7 +137,8 @@ describe('hosting', () => {
       vi.advanceTimersByTime(10)
       await tick()
     })
-    expect(received[1]).toEqual({ action: { type: 'move', marbleId: 0, to: { kind: 'loop', pos: 7 }, actor: 'human' }, seq: 1 })
+    // The host records which die the move used, even when the guest's intent didn't say.
+    expect(received[1]).toEqual({ action: { type: 'move', marbleId: 0, to: { kind: 'loop', pos: 7 }, actor: 'human', die: expect.any(Number) }, seq: 1 })
   })
 
   it('ignores a stale intent', async () => {
@@ -255,7 +256,7 @@ describe('joining as a guest', () => {
     })
     await act(tick)
     expect(picked.result).toBe('moved')
-    expect(intents).toEqual([{ color: 'yellow', seq: 2, intent: { action: 'move', marbleId: 2, to: { kind: 'loop', pos: 35 } } }])
+    expect(intents).toEqual([{ color: 'yellow', seq: 2, intent: { action: 'move', marbleId: 2, to: { kind: 'loop', pos: 35 }, die: 6 } }])
     expect(useGameStore.getState().actions).toHaveLength(2)
     intents.length = 0
     // With auto move back on, a repeat for the same position is not sent twice.
@@ -281,7 +282,7 @@ describe('joining as a guest', () => {
     act(() => vi.advanceTimersByTime(TIMING.SETTLE_MS + 10))
     act(() => vi.advanceTimersByTime(TIMING.AUTO_MOVE_MS + 10))
     await act(tick)
-    expect(intents).toEqual([{ color: 'yellow', seq: 2, intent: { action: 'move', marbleId: expect.any(Number), to: { kind: 'loop', pos: 35 } } }])
+    expect(intents).toEqual([{ color: 'yellow', seq: 2, intent: { action: 'move', marbleId: expect.any(Number), to: { kind: 'loop', pos: 35 }, die: 6 } }])
   })
 
   it('asks for a full copy when it notices a missing action', async () => {

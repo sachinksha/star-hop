@@ -295,3 +295,13 @@ describe('team play over the network', () => {
     expect(ana.log.nudges).toHaveLength(0)
   })
 })
+
+describe('house rules over the network', () => {
+  it('parses the die on a move intent strictly', () => {
+    const to = { kind: 'loop', pos: 40 }
+    expect(parseGuestMessage({ t: 'intent', seq: 1, action: 'move', marbleId: 1, to, die: 3 })).toMatchObject({ die: 3 })
+    expect(parseGuestMessage({ t: 'intent', seq: 1, action: 'move', marbleId: 1, to })).not.toHaveProperty('die')
+    expect(parseGuestMessage({ t: 'intent', seq: 1, action: 'move', marbleId: 1, to, die: 7 })).toBeNull()
+    expect(parseGuestMessage({ t: 'intent', seq: 1, action: 'move', marbleId: 1, to, die: '3' })).toBeNull()
+  })
+})

@@ -73,7 +73,7 @@ Positions on screen (SVG) live in `layout.ts`, separate from the rules (as in Lu
 | Choosing a move | Pick a token (`tokenId`) | Pick a marble **and a destination**. A marble on a star or in the centre can have several destinations | The action, the intent, the UI and keyboard input all change |
 | Board graph | A straight progress line | A loop with a home branch per arm, a ring of stars that can be circled freely, and the centre | `rules.ts` builds paths; each move carries its `path` for blocking checks and animation. Progress isn't monotonic, so "steps to home" is computed from the hole |
 | Blocking | No blocks | Own marbles block every hole on the path | Checked against the path |
-| Sharing a hole | Tokens stack | Never more than one marble per hole outside base | Strong invariant for the simulation |
+| Sharing a hole | Tokens stack | Never more than one marble per hole outside base, except the safe-start house rule (R24): an owner and one visitor on the owner's start | Strong invariant for the simulation, relaxed deliberately and still checked |
 | Safe squares | Stars and starts | None, except base and home | Bots have more danger to weigh |
 | Extra rolls | 6, capture, finish | Only a 6 | Simpler |
 | Seats | 2 or 4 | 2 to 6, on 6 arms | Setup, layout and protocol |
