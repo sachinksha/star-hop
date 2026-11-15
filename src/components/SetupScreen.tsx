@@ -8,19 +8,20 @@ import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { useGameStore } from '../store/gameStore'
 import { COLOR_HEX, COLOR_NAME } from './colors'
 import { RulesButton } from './RulesSheet'
+import { MiniBoard } from './SeatMap'
+import { seatArea } from './seatArea'
 import { SettingsButton } from './SettingsSheet'
 
 /** What sits in a seat. "friend" is a human on another device; it only exists online. */
 type SeatKind = 'human' | 'bot' | 'friend'
 type PlayMode = 'local' | 'online'
 
-const KIND_LABEL: Record<SeatKind, string> = { human: 'Human', bot: 'Bot', friend: 'Online friend' }
 
-/** Next kind when a seat is clicked. Online play adds "friend" to the cycle. */
-function nextKind(kind: SeatKind, play: PlayMode): SeatKind {
-  if (play === 'local') return kind === 'human' ? 'bot' : 'human'
-  return kind === 'human' ? 'bot' : kind === 'bot' ? 'friend' : 'human'
-}
+/** Short labels for the seat menu, which is narrow on a phone. The hint below the seats explains them. */
+const OPTION_LABEL: Record<SeatKind, string> = { human: 'Human', bot: 'Bot', friend: 'Online' }
+
+/** Who can sit in a seat. "Online friend" only exists when playing online. */
+const SEAT_KINDS: Record<PlayMode, readonly SeatKind[]> = { local: ['human', 'bot'], online: ['human', 'bot', 'friend'] }
 
 /** Arms spread evenly round the board for each player count. */
 const DEFAULT_ARMS: Record<number, Color[]> = {
@@ -84,6 +85,10 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
       const name = custom && kind === 'human' ? names[color]?.trim() : undefined
       return name ? { color, kind, name, ...team } : { color, kind, ...team }
     })
+
+  // The game draws this device's first human seat at the bottom; setup shows the same view.
+  const mySeat = seats.find((c) => kindOf(c) === 'human') ?? seats[0]
+  const bottom = mySeat ? armOf(mySeat) : 0
 
   const defaults = displayNames(configsFor(false))
   const shown = seats.map((color, i) => {
@@ -158,46 +163,54 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
         </fieldset>
       )}
 
-      {count < MAX_PLAYERS && (
-        <fieldset className="arm-picker">
-          <legend>Arms</legend>
-          <p className="setup-hint">Pick {count} of the 6 arms. A new pick replaces your oldest one.</p>
-          <div className="arm-chips">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className="arm-chip"
-                style={{ ['--arm' as string]: COLOR_HEX[color] }}
-                aria-pressed={arms.includes(color)}
-                onClick={() => pickArm(color)}
-              >
-                <span className="seat-dot" aria-hidden="true" />
-                {COLOR_NAME[color]}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      )}
-
       <fieldset className="seat-list">
         <legend>Seats</legend>
+        <p className="setup-hint">
+          Laid out like the board, with your seat at the bottom.
+          {count < MAX_PLAYERS && ` Tap an empty arm to seat a player there (it replaces your oldest pick).`}
+        </p>
+        <div className="seat-grid">
+          <div className="seat-grid-board">
+            <MiniBoard bottom={bottom} seated={seats} onPickArm={count < MAX_PLAYERS ? pickArm : undefined} />
+          </div>
+          {COLORS.filter((c) => !seats.includes(c)).map((color) => (
+            <button
+              key={color}
+              type="button"
+              className="seat-empty"
+              style={{ gridArea: seatArea(armOf(color), bottom), ['--arm' as string]: COLOR_HEX[color] }}
+              onClick={() => pickArm(color)}
+              disabled={count >= MAX_PLAYERS}
+              aria-label={`${COLOR_NAME[color]} arm: empty. Seat a player here`}
+            >
+              <span className="seat-dot" aria-hidden="true" />
+              <span>{COLOR_NAME[color]}</span>
+              <span className="seat-empty-hint">Empty · tap to seat</span>
+            </button>
+          ))}
         {shown.map(({ color, kind, name }, i) => {
           const error = errors[color]
           const inputId = `name-${color}`
           return (
-            <div key={color} className="seat-card" style={{ ['--arm' as string]: COLOR_HEX[color] }}>
+            <div key={color} className="seat-card" style={{ gridArea: seatArea(armOf(color), bottom), ['--arm' as string]: COLOR_HEX[color] }}>
               {teams && <span className={`team-chip team-chip-wide team-${teams[i]}`}>{teamLabel(teams[i]!)}</span>}
-              <button
-                type="button"
-                className="seat-kind"
-                onClick={() => setKinds((prev) => ({ ...prev, [color]: nextKind(kind, play) }))}
-                aria-label={`${COLOR_NAME[color]} seat: ${KIND_LABEL[kind]}. Click to change`}
-              >
+              <div className="seat-kind">
                 <span className="seat-dot" aria-hidden="true" />
                 <span>{COLOR_NAME[color]}</span>
-                <strong>{KIND_LABEL[kind]}</strong>
-              </button>
+                {/* A labelled dropdown says plainly what can change and to what. */}
+                <select
+                  className="seat-kind-select"
+                  aria-label={`${COLOR_NAME[color]} seat`}
+                  value={kind}
+                  onChange={(e) => setKinds((prev) => ({ ...prev, [color]: e.target.value as SeatKind }))}
+                >
+                  {SEAT_KINDS[play].map((k) => (
+                    <option key={k} value={k}>
+                      {OPTION_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {kind === 'human' ? (
                 <>
                   <label className="sr-only" htmlFor={inputId}>
@@ -227,10 +240,12 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
             </div>
           )
         })}
+        </div>
       </fieldset>
       <p className="setup-hint">
-        Names can be up to {MAX_NAME_LENGTH} characters. Click a seat to change who plays it.
-        {play === 'online' && ' Online friends choose their own name when they join.'}
+        Use each seat's menu to choose who plays it: <b>Human</b> (on this device) or <b>Bot</b>
+        {play === 'online' ? <>, or <b>Online</b>: a friend who joins with your invite link and picks their own name</> : ' (choose Online above to invite friends)'}.
+        Names can be up to {MAX_NAME_LENGTH} characters.
       </p>
       {problem && (
         <p className="field-error" role="alert">

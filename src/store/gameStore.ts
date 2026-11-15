@@ -39,6 +39,8 @@ export interface Settings {
   autoRoll: boolean
   /** Play a move automatically when the roll leaves no real decision. */
   autoMove: boolean
+  /** Show Undo and Redo (local games only). Off by default: undo changes how the game plays. */
+  undo: boolean
   /** Raise the odds of a 1 or 6 for players stuck in base for a long time (R13). */
   comebackDice: boolean
   /** House rules for new games (R22-R24). A game keeps the rules it started with. */
@@ -53,7 +55,8 @@ export interface Settings {
   volume: number
   /**
    * Big buttons under the board for picking marbles and destinations.
-   * 'auto' shows them on touch screens, where board pieces are small under a finger.
+   * 'auto' shows them on phones: any touch screen, or any screen 700px wide or
+   * less, where board pieces are small under a finger.
    */
   moveButtons: MoveButtons
 }
@@ -81,11 +84,13 @@ export const SETTINGS_KEY = 'star-hop:settings'
 export const DEFAULT_SETTINGS: Settings = {
   autoRoll: false,
   autoMove: false,
+  undo: false,
   comebackDice: true,
-  houseRules: NO_HOUSE_RULES,
+  // Every house rule on: how the game was played growing up.
+  houseRules: { rollSixesFirst: true, crossCentre: true, safeStarts: true },
   sound: true,
   theme: 'system',
-  soundTheme: 'classic',
+  soundTheme: 'tabla',
   volume: 0.8,
   moveButtons: 'auto',
 }
@@ -94,7 +99,7 @@ function loadSettings(): Settings {
   const parsed = readJson(SETTINGS_KEY)
   const settings = { ...DEFAULT_SETTINGS }
   if (isObject(parsed)) {
-    for (const key of ['autoRoll', 'autoMove', 'comebackDice', 'sound'] as const) {
+    for (const key of ['autoRoll', 'autoMove', 'undo', 'comebackDice', 'sound'] as const) {
       const value = parsed[key]
       if (typeof value === 'boolean') settings[key] = value
     }

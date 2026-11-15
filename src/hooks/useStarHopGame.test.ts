@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playSound } from '../audio/sfx'
 import { BASE, CENTER, home, loop } from '../game/testUtils'
-import type { Color, PlayerConfig, Spot } from '../game/types'
+import { NO_HOUSE_RULES, type Color, type PlayerConfig, type Spot } from '../game/types'
 import { DEFAULT_SETTINGS, useGameStore } from '../store/gameStore'
 import { TIMING, useStarHopGame } from './useStarHopGame'
 
@@ -58,7 +58,7 @@ beforeEach(() => {
   vi.mocked(playSound).mockClear()
   store().abort()
   // These tests cover the automation, so it starts on; tests that need it off say so.
-  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: true, autoMove: true })
+  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: true, autoMove: true, houseRules: NO_HOUSE_RULES })
 })
 
 afterEach(() => {
@@ -247,10 +247,33 @@ describe('undo, redo and pause', () => {
     advance(4 * TIMING.STEP_MS + TIMING.SETTLE_MS + 100)
     expect(store().actions).toHaveLength(2)
     expect(result.current.canUndo).toBe(true)
+    // First undo: the move only. Same roll, so a different move can be chosen.
     act(() => result.current.undo())
-    expect(store().actions).toHaveLength(0)
+    expect(store().actions).toEqual([{ type: 'roll', value: 3, actor: 'human' }])
+    expect(store().game!.phase).toBe('move')
     expect(result.current.shownPlayers.find((p) => p.color === 'red')!.marbles[0]!.spot).toEqual(loop(30))
     expect(result.current.canRedo).toBe(true)
+    // Second undo: the roll.
+    act(() => result.current.undo())
+    expect(store().actions).toHaveLength(0)
+    expect(store().game!.phase).toBe('roll')
+  })
+
+  it('does not replay an undone move or roll automatically', () => {
+    store().updateSettings({ autoMove: true, autoRoll: true })
+    seed(TWO, { red: [loop(30)] })
+    const { result } = renderHook(() => useStarHopGame(dice(3)))
+    // Auto roll, then auto move (one legal move).
+    // ...and let the move settle (undo waits for animations), but not as far as the bot's roll.
+    advance(TIMING.AUTO_ROLL_MS + TIMING.ROLL_MS + TIMING.SETTLE_MS + TIMING.AUTO_MOVE_MS + 4 * TIMING.STEP_MS + TIMING.SETTLE_MS + 100)
+    expect(store().actions.map((a) => a.type)).toEqual(['roll', 'move'])
+    act(() => result.current.undo())
+    advance(3000)
+    // Still waiting at the undone move: the player decides, not auto move.
+    expect(store().actions).toHaveLength(1)
+    act(() => result.current.undo())
+    advance(3000)
+    expect(store().actions).toHaveLength(0)
   })
 
   it('pauses when the window loses focus, and stops scheduling', () => {

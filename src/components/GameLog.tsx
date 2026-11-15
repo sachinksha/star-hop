@@ -45,6 +45,7 @@ export function GameLog() {
 /** Keyboard help. Hidden on touch-only devices. */
 export function KeyboardHelp() {
   const bankedDice = useGameStore((s) => s.game?.rules?.rollSixesFirst ?? false)
+  const undo = useGameStore((s) => s.settings.undo)
   if (IS_TOUCH) return null
   return (
     <section className="side-card">
@@ -52,17 +53,24 @@ export function KeyboardHelp() {
       <dl className="shortcuts">
         <dt><kbd>Space</kbd></dt><dd>Roll the die</dd>
         <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Pick a marble</dd>
-        <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Then pick where it goes (numbered on the board)</dd>
+        <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Then a numbered hole</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Step through marbles or holes (any number), <kbd>Enter</kbd> to choose</dd>
         <dt><kbd>Esc</kbd></dt><dd>Back to picking a marble</dd>
         {bankedDice && (
           <>
             <dt><kbd>D</kbd></dt><dd>Switch die (when several are banked)</dd>
           </>
         )}
-        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Undo / redo</dd>
+        {undo && (
+          <>
+            <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo (move, then roll)</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>Redo</dd>
+          </>
+        )}
         <dt><kbd>P</kbd></dt><dd>Pause / resume</dd>
         <dt><kbd>L</kbd></dt><dd>Show / hide game log</dd>
-        <dt><kbd>N</kbd></dt><dd>New game</dd>
+        <dt><kbd>G</kbd></dt><dd>Game: restart or set up a new one</dd>
+        <dt><kbd>N</kbd></dt><dd>Restart this game</dd>
         <dt><kbd>S</kbd></dt><dd>Settings</dd>
         <dt><kbd>?</kbd></dt><dd>Game rules</dd>
       </dl>

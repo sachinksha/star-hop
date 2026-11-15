@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isMuted } from '../audio/sfx'
-import type { GameAction, PlayerConfig } from '../game/types'
+import { NO_HOUSE_RULES, type GameAction, type PlayerConfig } from '../game/types'
 import { DEFAULT_SETTINGS, LAST_SETUP_KEY, SAVED_GAME_KEY, SAVE_VERSION, SETTINGS_KEY, loadSavedGame, migrateSave, useGameStore } from './gameStore'
 
 const TWO: PlayerConfig[] = [
@@ -20,7 +20,8 @@ const ENTER: GameAction[] = [
 
 beforeEach(() => {
   store().abort()
-  store().updateSettings(DEFAULT_SETTINGS)
+  // These tests use the standard rules; the house rules have tests of their own.
+  store().updateSettings({ ...DEFAULT_SETTINGS, houseRules: NO_HOUSE_RULES })
   window.localStorage.clear()
 })
 
@@ -54,12 +55,15 @@ describe('game store: history', () => {
     expect(store().log).toHaveLength(0)
   })
 
-  it('undoes back to the human roll and redoes it', () => {
+  it('undoes the move, then the roll, and redoes both', () => {
     store().start(TWO, FIRST)
     ENTER.forEach((a) => store().record(a))
     store().undo()
+    expect(store().actions).toEqual(ENTER.slice(0, 1))
+    store().undo()
     expect(store().actions).toHaveLength(0)
     expect(store().game?.players[0]?.marbles.every((m) => m.spot.kind === 'base')).toBe(true)
+    store().redo()
     store().redo()
     expect(store().actions).toEqual(ENTER)
   })
@@ -117,7 +121,8 @@ describe('game store: theme', () => {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoRoll: false, theme: 'dark' }))
     vi.resetModules()
     let fresh = (await import('./gameStore')).useGameStore.getState()
-    expect(fresh.settings).toMatchObject({ autoRoll: false, soundTheme: 'classic', volume: 0.8, moveButtons: 'auto' })
+    expect(fresh.settings).toMatchObject({ autoRoll: false, soundTheme: 'tabla', volume: 0.8, moveButtons: 'auto', theme: 'dark' })
+    expect(fresh.settings.houseRules).toEqual({ rollSixesFirst: true, crossCentre: true, safeStarts: true })
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ soundTheme: 'tabla', volume: 0.3, moveButtons: 'on' }))
     vi.resetModules()
     fresh = (await import('./gameStore')).useGameStore.getState()
@@ -125,7 +130,7 @@ describe('game store: theme', () => {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ soundTheme: 'kazoo', volume: 7, moveButtons: 'maybe' }))
     vi.resetModules()
     fresh = (await import('./gameStore')).useGameStore.getState()
-    expect(fresh.settings).toMatchObject({ soundTheme: 'classic', volume: 0.8, moveButtons: 'auto' })
+    expect(fresh.settings).toMatchObject({ soundTheme: 'tabla', volume: 0.8, moveButtons: 'auto' })
   })
 })
 

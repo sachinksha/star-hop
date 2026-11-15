@@ -30,6 +30,8 @@ interface DicePoolProps {
   usable: (die: number) => boolean
   /** This device's player chooses (otherwise the pool is shown, not chosen from). */
   interactive: boolean
+  /** Show the keyboard hint (not on touch screens). */
+  keyHint?: boolean
   onSelect: (die: number) => void
 }
 
@@ -39,7 +41,7 @@ interface DicePoolProps {
  * button, so the order can be picked by keyboard or tap; dice that can't move
  * anything right now are disabled rather than hidden, so the row doesn't jump.
  */
-export function DicePool({ pool, banking, selectedDie, usable, interactive, onSelect }: DicePoolProps) {
+export function DicePool({ pool, banking, selectedDie, usable, interactive, keyHint = false, onSelect }: DicePoolProps) {
   if (pool.length === 0 || (!banking && pool.length === 1)) return null
   return (
     <div className="dice-pool" role="group" aria-label={banking ? 'Banked dice' : 'Dice to use'}>
@@ -64,6 +66,11 @@ export function DicePool({ pool, banking, selectedDie, usable, interactive, onSe
             <MiniDie value={die} />
           </button>
         ),
+      )}
+      {!banking && interactive && keyHint && (
+        <span className="dice-pool-label" aria-hidden="true">
+          <kbd>D</kbd> switches
+        </span>
       )}
     </div>
   )

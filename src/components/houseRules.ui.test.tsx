@@ -52,12 +52,12 @@ describe('DicePool (R22)', () => {
 })
 
 describe('house rules on setup and in the rules', () => {
-  it('turns house rules on from setup, remembers them, and starts the game with them', () => {
+  it('starts with every house rule on, lets setup turn them off, and starts the game with the choice', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)
     const group = screen.getByRole('group', { name: 'House rules' })
-    fireEvent.click(within(group).getByRole('checkbox', { name: /Roll all your sixes first/ }))
-    fireEvent.click(within(group).getByRole('checkbox', { name: /Safe start holes/ }))
+    expect(within(group).getByRole('checkbox', { name: /Walk across the centre/ })).toBeChecked()
+    fireEvent.click(within(group).getByRole('checkbox', { name: /Walk across the centre/ }))
     expect(useGameStore.getState().settings.houseRules).toEqual({ rollSixesFirst: true, crossCentre: false, safeStarts: true })
     useGameStore.getState().start([{ color: 'red', kind: 'human' }, { color: 'blue', kind: 'bot' }], () => 0)
     expect(useGameStore.getState().game!.rules).toEqual({ rollSixesFirst: true, crossCentre: false, safeStarts: true })

@@ -1,13 +1,13 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState } from 'react'
 import { previewSound } from '../audio/sfx'
 import { SOUND_LABEL, SOUND_NAMES, SOUND_THEME_IDS, SOUND_THEMES } from '../audio/themes'
-import { MOVE_BUTTONS, THEMES, useGameStore, type MoveButtons, type Settings, type Theme, type ToggleSetting } from '../store/gameStore'
+import { DEFAULT_SETTINGS, MOVE_BUTTONS, THEMES, useGameStore, type MoveButtons, type Settings, type Theme, type ToggleSetting } from '../store/gameStore'
 import { Icon, type IconName } from './Icons'
 import { Sheet } from './Sheet'
 
 const THEME_LABEL: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark' }
 const THEME_ICON: Record<Theme, IconName> = { system: 'monitor', light: 'sun', dark: 'moon' }
-const MOVE_BUTTONS_LABEL: Record<MoveButtons, string> = { auto: 'On touch', on: 'Always', off: 'Never' }
+const MOVE_BUTTONS_LABEL: Record<MoveButtons, string> = { auto: 'On phones', on: 'Always', off: 'Never' }
 
 /** One on/off preference: label and hint on the left, a switch on the right. */
 function SwitchRow({ setting, label, hint }: { setting: ToggleSetting; label: string; hint?: string }) {
@@ -134,23 +134,31 @@ function SoundThemePicker() {
 
 /**
  * Every preference in one place. Changes apply at once and never interrupt a
- * game. Anything that ends or restarts the game goes in `gameSection`, kept
- * apart at the bottom.
+ * game. Anything that ends or restarts the game lives in the Game menu
+ * instead, so nothing here can lose a game by accident.
  */
-export function SettingsContent({ gameSection }: { gameSection?: ReactNode }) {
+export function SettingsContent() {
   return (
     <div className="settings">
       <section aria-labelledby="settings-play">
         <h3 id="settings-play">Playing</h3>
         <SwitchRow setting="autoRoll" label="Auto roll" hint="Roll by itself on your turn. You still choose every real move." />
         <SwitchRow setting="autoMove" label="Auto move" hint="Play your move by itself when the roll leaves no real choice." />
+        <SwitchRow
+          setting="undo"
+          label="Undo and redo"
+          hint="Show Undo and Redo in local games (Ctrl+Z, Ctrl+Y). Each undo goes back one step: your move first, then your roll."
+        />
         <Segmented
           setting="moveButtons"
           label="Move buttons under the board"
           options={MOVE_BUTTONS}
           optionLabel={(v) => MOVE_BUTTONS_LABEL[v]}
         />
-        <p className="setting-hint setting-note">Big numbered buttons for picking marbles and where they go, easier than tapping small pieces.</p>
+        <p className="setting-hint setting-note">
+          Big numbered buttons for picking marbles and where they go, easier than tapping small pieces. "On phones" means any
+          touch screen or narrow window.
+        </p>
       </section>
 
       <section aria-labelledby="settings-sound">
@@ -164,21 +172,55 @@ export function SettingsContent({ gameSection }: { gameSection?: ReactNode }) {
         <Segmented setting="theme" label="Theme" options={THEMES} optionLabel={(v) => THEME_LABEL[v]} icon={(v) => THEME_ICON[v]} />
       </section>
 
-      {gameSection && (
-        <section className="settings-danger" aria-labelledby="settings-game">
-          <h3 id="settings-game">This game</h3>
-          {gameSection}
-        </section>
-      )}
+      <section aria-labelledby="settings-reset">
+        <h3 id="settings-reset" className="sr-only">Reset</h3>
+        <ResetDefaults />
+      </section>
+
     </div>
   )
 }
 
-export function SettingsSheet({ open, onClose, gameSection }: { open: boolean; onClose: () => void; gameSection?: ReactNode }) {
+export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Sheet open={open} onClose={onClose} title="Settings">
-      <SettingsContent gameSection={gameSection} />
+      <SettingsContent />
     </Sheet>
+  )
+}
+
+/**
+ * Puts every preference back to its default, including the house rules new
+ * games start with. A game already in progress keeps its rules. Asks first,
+ * inline, since it undoes choices the player made on purpose.
+ */
+function ResetDefaults() {
+  const [confirming, setConfirming] = useState(false)
+  const updateSettings = useGameStore((s) => s.updateSettings)
+  if (!confirming) {
+    return (
+      <button type="button" className="link-button settings-reset" onClick={() => setConfirming(true)}>
+        Reset all settings to defaults
+      </button>
+    )
+  }
+  return (
+    <div className="settings-reset-confirm" role="group" aria-label="Reset settings">
+      <span className="setting-hint">Reset every setting, and the house rules for new games, to the defaults?</span>
+      <button type="button" onClick={() => setConfirming(false)}>
+        Cancel
+      </button>
+      <button
+        type="button"
+        className="primary"
+        onClick={() => {
+          updateSettings({ ...DEFAULT_SETTINGS })
+          setConfirming(false)
+        }}
+      >
+        Reset
+      </button>
+    </div>
   )
 }
 

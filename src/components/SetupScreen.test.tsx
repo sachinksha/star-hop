@@ -8,7 +8,8 @@ beforeEach(() => {
 })
 
 const startButton = () => screen.getByRole('button', { name: 'Start game' })
-const seat = (colour: string) => screen.getByRole('button', { name: new RegExp(`^${colour} seat`) })
+const seat = (colour: string) => screen.getByRole('combobox', { name: `${colour} seat` })
+const setSeat = (colour: string, kind: 'human' | 'bot' | 'friend') => fireEvent.change(seat(colour), { target: { value: kind } })
 
 describe('SetupScreen', () => {
   it('starts with 4 seats: you and three bots, spread round the board', () => {
@@ -33,24 +34,39 @@ describe('SetupScreen', () => {
     fireEvent.click(startButton())
     expect(onStart.mock.calls[0]![0].map((c: { color: string }) => c.color)).toEqual(['red', 'green'])
     fireEvent.click(screen.getByRole('radio', { name: '6' }))
-    expect(screen.queryByRole('group', { name: 'Arms' })).toBeNull()
-    expect(screen.getAllByRole('button', { name: /seat:/ })).toHaveLength(6)
+    expect(screen.queryByRole('button', { name: /arm: empty/ })).toBeNull()
+    expect(screen.getAllByRole('combobox', { name: / seat$/ })).toHaveLength(6)
   })
 
-  it('replaces the oldest arm pick with a new one', () => {
+  it('seats a player on an empty arm, replacing the oldest pick', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)
     fireEvent.click(screen.getByRole('radio', { name: '2' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Purple' }))
-    expect(screen.getByRole('button', { name: 'Purple' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Red' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Purple arm: empty. Seat a player here' }))
+    expect(seat('Purple')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Red arm: empty. Seat a player here' })).toBeInTheDocument()
     fireEvent.click(startButton())
     expect(onStart.mock.calls[0]![0].map((c: { color: string }) => c.color)).toEqual(['green', 'purple'])
   })
 
+  it('lays the seats out like the board, with your seat at the bottom', () => {
+    render(<SetupScreen onStart={vi.fn()} />)
+    // Red is the human: bottom. Clockwise from there: orange bottom-left... as on the game board.
+    const area = (name: string) => (seat(name).closest('.seat-card') as HTMLElement).style.gridArea
+    expect(area('Red')).toBe('b')
+    expect(area('Orange')).toBe('bl')
+    expect(area('Green')).toBe('t')
+    expect(area('Blue')).toBe('tr')
+    // Make blue the only human: the layout turns so blue is at the bottom, as the game will show it.
+    setSeat('Red', 'bot')
+    setSeat('Blue', 'human')
+    expect(area('Blue')).toBe('b')
+    expect(area('Red')).toBe('tl')
+  })
+
   it('needs at least one human', () => {
     render(<SetupScreen onStart={vi.fn()} />)
-    fireEvent.click(seat('Red'))
+    setSeat('Red', 'bot')
     expect(screen.getByRole('alert')).toHaveTextContent('At least one seat must be a human player.')
     expect(startButton()).toBeDisabled()
   })
@@ -58,7 +74,7 @@ describe('SetupScreen', () => {
   it('validates names and passes custom names on', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)
-    fireEvent.click(seat('Orange'))
+    setSeat('Orange', 'human')
     const second = screen.getAllByRole('textbox')[1]!
     // Clashes with red's default name "Player 1", ignoring case.
     fireEvent.change(second, { target: { value: 'player 1' } })
@@ -99,9 +115,10 @@ describe('SetupScreen', () => {
     render(<SetupScreen onStart={onStart} />)
     fireEvent.click(screen.getByRole('radio', { name: 'Online (invite link)' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Set at least one seat to Online friend.')
-    // Online, a click cycles human -> bot -> online friend: Orange (a bot) becomes a friend.
-    fireEvent.click(seat('Orange'))
-    expect(seat('Orange')).toHaveAccessibleName('Orange seat: Online friend. Click to change')
+    // Online play adds "Online friend" to each seat's menu; locally it isn't offered.
+    expect(screen.getAllByRole('option', { name: 'Online' }).length).toBeGreaterThan(0)
+    setSeat('Orange', 'friend')
+    expect(seat('Orange')).toHaveValue('friend')
     expect(screen.getByText('Joins by link')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
     expect(onStart).toHaveBeenCalledWith(

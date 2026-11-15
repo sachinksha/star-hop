@@ -205,6 +205,12 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const [endDeclined, setEndDeclined] = useState(false)
   /** The picked marble, tied to the position it was picked in so it clears itself after any action. */
   const [selection, setSelection] = useState<{ seq: number; marbleId: number } | null>(null)
+  /**
+   * The action count an undo went back to. Auto roll and auto move hold off at
+   * that position, so an undone move or roll isn't replayed straight away: the
+   * player undid it to decide again.
+   */
+  const [heldAt, setHeldAt] = useState<number | null>(null)
   /** The die chosen from a pool (R22), tied to its position like the selection. */
   const [dieChoice, setDieChoice] = useState<{ seq: number; die: number } | null>(null)
 
@@ -540,6 +546,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       return () => window.clearTimeout(id)
     }
 
+    const held = heldAt === actions.length
     if (game.phase === 'roll') {
       // A finished bot picks the teammate it helps most. A finished human always decides.
       if (isHelperTurn(game)) {
@@ -550,7 +557,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
         }, TIMING.BOT_ROLL_MS)
         return () => window.clearTimeout(id)
       }
-      if (seat.kind === 'human' && (seat.remote || !autoRoll)) return
+      if (seat.kind === 'human' && (seat.remote || !autoRoll || held)) return
       const id = window.setTimeout(() => performRoll(), seat.kind === 'bot' ? TIMING.BOT_ROLL_MS : TIMING.AUTO_ROLL_MS)
       return () => window.clearTimeout(id)
     }
@@ -558,7 +565,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
     // Move phase. When the roll leaves no real decision, play it without a
     // click: always for bots, and for this device's humans when auto move is on.
     // A remote player's own device decides that for them, so the host waits.
-    const auto = seat.kind === 'bot' || (autoMove && isMine(seat.color)) ? autoMoveFor(moverOf(game).color, game.legalMoves) : null
+    const auto = seat.kind === 'bot' || (autoMove && isMine(seat.color) && !held) ? autoMoveFor(moverOf(game).color, game.legalMoves) : null
     if (auto) {
       const id = window.setTimeout(() => performMove(auto), TIMING.AUTO_MOVE_MS)
       return () => window.clearTimeout(id)
@@ -571,7 +578,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
       }, TIMING.BOT_MOVE_MS)
       return () => window.clearTimeout(id)
     }
-  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, performMove, performPass, sendIntent, rng])
+  }, [game, actions, busy, paused, offerEnd, autoRoll, autoMove, role, inbox, isMine, performRoll, performMove, performPass, sendIntent, rng, heldAt])
 
   const endEarly = useCallback(() => {
     if (busyRef.current || role === 'guest') return
@@ -598,6 +605,7 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
   const undo = useCallback(() => {
     if (busyRef.current || role !== 'local') return
     useGameStore.getState().undo()
+    setHeldAt(useGameStore.getState().actions.length)
     resetView()
   }, [role, resetView])
 

@@ -12,9 +12,9 @@ Every control falls into one of three groups, depending on what happens if you p
 | --- | --- | --- | --- |
 | **Moment-to-moment game controls** | Undo, redo, pause, rules | Nothing, or one undo | Toolbar, always visible |
 | **Preferences** | Auto roll, auto move, move buttons, sound, volume, sound style, theme | Nothing: change it back | Settings sheet, applied instantly |
-| **Game-ending actions** | New game, change setup, end online game, leave | The whole game | Settings sheet, in a separate "This game" section, always confirmed |
+| **Game-ending actions** | Restart, set up a new game, end online game, leave | The whole game | The Game menu (toolbar flag button), always confirmed. First version: a "This game" section in Settings; see "Second pass" below |
 
-The toolbar went from ten controls to five and fits on one row on a phone. Inside Settings, the "This game" section sits at the bottom, with a tinted border, a sentence saying what these do ("These end or restart the game, so they always ask first"), and a confirmation for each. This is the same pattern as the "danger zone" at the bottom of a repository's settings page on GitHub: destructive actions are findable but never next to the everyday ones.
+The toolbar went from ten controls to five and fits on one row on a phone. In the first version, the "This game" section sat at the bottom of Settings, with a tinted border, a sentence saying what these do ("These end or restart the game, so they always ask first"), and a confirmation for each. This is the same pattern as the "danger zone" at the bottom of a repository's settings page on GitHub: destructive actions are findable but never next to the everyday ones.
 
 Two smaller decisions:
 
@@ -66,6 +66,18 @@ Measured in the browser, the dialog had scrolled 432px down inside itself. The f
 - **Visually hidden inputs need a positioned parent.** The common "sr-only" and custom-radio patterns all assume one.
 - **`overflow: hidden` is not "unscrollable".** Use `clip` when you mean it.
 - **jsdom can't catch this.** It has no layout. The reproduction was a browser script that read `dialog.scrollTop` before and after, which is the case for a few real-browser end-to-end tests in CI.
+
+## Second pass: a Game menu, after playing it
+
+The first reorganisation put "New game" and "Change setup" in a danger zone at the bottom of Settings. Playing it showed three problems:
+
+- **Discoverability.** Nobody looks in Settings to quit or restart a game. A toolbar **Game** button (flag icon, G) now holds those actions, and Settings is preferences only. That is a cleaner rule anyway: nothing in Settings can lose a game.
+- **Ambiguous names.** "New game" actually restarted with the same seats, and "Change setup" also meant "quit". The choices are now named for what they do, each with a line of explanation: **Restart** (same players, seats and house rules) and **Set up a new game** (back to setup, prefilled). Confirmations repeat the consequence ("Restart this game?", "Discard and set up").
+- **Undo on by default.** Undo changes how the game plays (you can fish for a better roll), so it is now a setting, off by default, and it is **granular**: each undo goes back one human decision, the move first (same roll, choose again), then the roll. Automatic roll and move hold off at an undone position, or undo would immediately be undone.
+
+Keyboard support was reworked at the same time. Arrow keys were the undo and redo shortcuts, which is easy to hit by accident and clashes with the platform convention, so undo is now Ctrl+Z and redo Ctrl+Y or Ctrl+Shift+Z, the conventions every editor uses. That freed the arrows for a better job: **roving focus** through the marbles or numbered holes, with the path previewed on focus and Enter to choose. Digits only reach 9, and crossing the centre can offer a dozen destinations; rather than invent two-digit or nested key tips (Office's KeyTips solve a different problem, a deep menu tree), the arrows make every option reachable with one consistent gesture, and the help text no longer promises what digits can't do.
+
+The general lesson: **information architecture is a hypothesis.** Ship the reasoned version, watch it used, and revise. The second pass here came from one round of real play.
 
 ## Settings that evolve without migrations
 

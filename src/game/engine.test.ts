@@ -254,13 +254,16 @@ describe('history', () => {
     expect(manual).toEqual(state)
   })
 
-  it('undoes back to the last human roll', () => {
+  it('undoes one human decision at a time: the move first, then the roll', () => {
     const actions: GameAction[] = [
       { type: 'roll', value: 6, actor: 'human' },
       { type: 'move', marbleId: 0, to: loop(7), actor: 'human' },
       { type: 'roll', value: 3, actor: 'bot' },
     ]
-    expect(undoIndex(actions)).toBe(0)
+    // The bot's roll goes with the human move it followed.
+    expect(undoIndex(actions)).toBe(1)
+    expect(undoIndex(actions.slice(0, 1))).toBe(0)
+    expect(undoIndex([{ type: 'roll', value: 3, actor: 'bot' }])).toBeNull()
     expect(undoIndex([])).toBeNull()
   })
 })

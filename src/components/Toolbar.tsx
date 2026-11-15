@@ -25,6 +25,8 @@ export function ToolButton({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={pressed}
+      // The visible label is hidden on phones (icon only); keep the name the label, not the tooltip.
+      aria-label={label}
       aria-keyshortcuts={shortcut}
       title={shortcutLabel ? `${label} (${shortcutLabel})` : label}
     >

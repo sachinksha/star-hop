@@ -4,6 +4,7 @@ import App from './App'
 import { previewSound } from './audio/sfx'
 import { BASE, home, loop } from './game/testUtils'
 import type { Color, Spot } from './game/types'
+import { NO_HOUSE_RULES } from './game/types'
 import { DEFAULT_SETTINGS, useGameStore } from './store/gameStore'
 
 vi.mock('./audio/sfx', () => ({ playSound: vi.fn(), previewSound: vi.fn(), setMuted: vi.fn(), setVolume: vi.fn(), setSoundTheme: vi.fn(), isMuted: () => false }))
@@ -39,7 +40,7 @@ const redSpot = (id: number) => store().game!.players.find((p) => p.color === ('
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
   store().abort()
-  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: false })
+  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: false, houseRules: NO_HOUSE_RULES })
   window.localStorage.clear()
 })
 
@@ -136,34 +137,39 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Source on GitHub' })).toHaveAttribute('href', 'https://github.com/sachinksha/star-hop')
   })
 
-  it('asks before abandoning a game in progress', () => {
+  it('the Game menu restarts or sets up a new game, asking first when a game is in progress', () => {
     startTwoPlayer([])
     rollNext(3)
     fireEvent.keyDown(window, { key: ' ' })
     advance(TIMINGish)
-    const changeSetup = () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
-      fireEvent.click(within(screen.getByRole('dialog', { name: 'Settings' })).getByRole('button', { name: 'Change setup' }))
+    const choose = (name: RegExp) => {
+      fireEvent.click(screen.getByRole('button', { name: 'Game' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Game' })).getByRole('button', { name }))
     }
-    changeSetup()
-    expect(screen.getByRole('alertdialog', { name: 'Abandon the current game?' })).toBeInTheDocument()
+    // Set up a new game: confirm, or keep playing.
+    choose(/^Set up a new game/)
+    expect(screen.getByRole('alertdialog', { name: 'Leave this game for setup?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Keep playing' }))
     expect(store().game).not.toBeNull()
     expect(store().paused).toBe(false)
-    changeSetup()
-    fireEvent.click(screen.getByRole('button', { name: 'Abandon and change setup' }))
+    // Restart: same players, from the beginning.
+    const session = store().session
+    choose(/^Restart/)
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }))
+    expect(store().session).toBe(session + 1)
+    expect(store().actions).toHaveLength(0)
+    // A fresh game with no moves needs no confirmation to leave.
+    choose(/^Set up a new game/)
     expect(screen.getByRole('heading', { name: 'Star Hop', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start game' })).toBeInTheDocument()
   })
 
-  it('keeps game-ending actions apart in settings, and pauses while settings are open', () => {
+  it('keeps Settings to preferences only, and pauses while it is open', () => {
     startTwoPlayer([])
     fireEvent.keyDown(window, { key: 's' })
     const sheet = screen.getByRole('dialog', { name: 'Settings' })
     expect(store().paused).toBe(true)
-    const game = within(sheet).getByRole('heading', { name: 'This game' }).closest('section')!
-    expect(within(game).getByRole('button', { name: 'New game' })).toBeInTheDocument()
-    expect(within(game).getByRole('button', { name: 'Change setup' })).toBeInTheDocument()
+    expect(within(sheet).queryByRole('button', { name: /Restart|Set up a new game|New game/ })).toBeNull()
     // Simple preferences apply at once and don't touch the game.
     const before = store().settings.autoRoll
     fireEvent.click(within(sheet).getByRole('switch', { name: 'Auto roll' }))
@@ -171,6 +177,52 @@ describe('App', () => {
     expect(store().game).not.toBeNull()
     fireEvent.click(within(sheet).getByRole('button', { name: 'Close' }))
     expect(store().paused).toBe(false)
+  })
+
+  it('hides Undo unless it is turned on, then undoes one step at a time with Ctrl+Z', () => {
+    startTwoPlayer([loop(30)])
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+    act(() => store().updateSettings({ undo: true }))
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+    rollNext(3)
+    fireEvent.keyDown(window, { key: ' ' })
+    advance(TIMINGish)
+    fireEvent.keyDown(window, { key: '1' })
+    advance(TIMINGish)
+    expect(store().actions.map((a) => a.type).slice(0, 2)).toEqual(['roll', 'move'])
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    expect(store().actions.map((a) => a.type)).toEqual(['roll'])
+    fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
+    expect(store().actions.map((a) => a.type).slice(0, 2)).toEqual(['roll', 'move'])
+    // Arrow keys no longer undo.
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(store().actions.map((a) => a.type).slice(0, 2)).toEqual(['roll', 'move'])
+  })
+
+  it('steps through marbles and holes with the arrow keys, Enter to choose: any number of destinations', () => {
+    // Red on a star with crossing the centre on: a 3 offers more than nine destinations.
+    act(() => store().updateSettings({ houseRules: { rollSixesFirst: false, crossCentre: true, safeStarts: false } }))
+    startTwoPlayer([loop(14)])
+    act(() => {
+      const g = store().game!
+      const custom = { ...g, rules: { rollSixesFirst: false, crossCentre: true, safeStarts: false } }
+      useGameStore.setState({ initial: custom, game: custom })
+    })
+    rollNext(3)
+    fireEvent.keyDown(window, { key: ' ' })
+    advance(TIMINGish)
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByTestId('marble-red-0'))
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter' })
+    const count = screen.getAllByTestId(/^destination-/).length
+    expect(count).toBeGreaterThan(9)
+    // Left from nothing focused wraps to the last destination, the 10th or later: unreachable by one digit.
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(screen.getByTestId(`destination-${count}`))
+    const target = store().game!.legalMoves.filter((m) => m.die === 3 && m.marbleId === 0)[count - 1]!
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter' })
+    advance(3000)
+    expect(store().actions[1]).toMatchObject({ type: 'move', marbleId: 0, to: target.to })
   })
 
   it('pauses a local game while the rules are open, and resumes it when they close', () => {

@@ -7,7 +7,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBotProfile } from '../game/bot'
 import { createGame } from '../game/engine'
-import type { GameAction, PlayerConfig } from '../game/types'
+import { NO_HOUSE_RULES, type GameAction, type PlayerConfig } from '../game/types'
 import { GuestSession } from '../net/guestSession'
 import { HostSession } from '../net/hostSession'
 import { parseInvite } from '../net/invite'
@@ -38,7 +38,8 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
   network = new MemoryNetwork()
   configureOnline({ network, baseUrl: () => 'https://star-hop.test/' })
-  useGameStore.getState().updateSettings({ autoRoll: false })
+  // The standard rules: these tests are about the network, not the house rules.
+  useGameStore.getState().updateSettings({ autoRoll: false, houseRules: NO_HOUSE_RULES })
 })
 
 afterEach(() => {

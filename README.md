@@ -15,30 +15,34 @@ npm run build   # typecheck and production build
 
 ## How to play
 
-Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human or Bot. With 4 or 6 players you can also play in **teams** (see below). Your arm is drawn at the bottom of the board.
+Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human or Bot. The seats are laid out around a small picture of the board, exactly as the game will show them, with your seat at the bottom; tap an empty arm to seat someone there. With 4 or 6 players you can also play in **teams** (see below). Your arm is drawn at the bottom of the board.
 
 - **Roll:** press Space or tap the die. With Auto roll on (off by default; turn it on in Settings) your die rolls by itself.
 - **Pick a marble:** marbles you can move glow. Tap one, or press its number (1 to 4). If it can only go one place, it moves straight away. With Auto move on (off by default), a roll that leaves no real choice plays itself.
 - **Pick where it goes:** when a marble has several destinations (on a star, near the centre), each gets a numbered badge on the board, 1 being the one closest to home and the centre always last. Tap a badge or press its number. Hover or focus a badge to see the path; Esc goes back.
 - **Rules:** the Rules button (on setup, the join screen and the toolbar) or **?** opens a plain-language summary. On phones it is a bottom sheet you can swipe down to close. Reading the rules pauses a local game.
 - **On a phone:** big numbered **move buttons** appear under the board, matching the numbers on the marbles and destination circles. Press one to see which piece it means; lift to choose, or slide off to cancel. Taps that miss a small piece go to the nearest piece you can use, unless two are about equally close. Turn the buttons on or off in Settings.
-- Undo/redo (← →), pause (P), rules (?), log (L), new game (N) and settings (S) work from the keyboard. The toolbar keeps just undo, redo, pause, rules and settings.
+- **Keyboard:** Space rolls; 1–4 picks a marble and 1–9 a numbered hole; **← →** (or ↑ ↓) step through the marbles or holes you can choose, previewing each path, and **Enter** chooses, so even a dozen destinations are all reachable; Esc goes back; **D** switches die when several are banked. P pauses, L shows the log, ? opens the rules, S settings, G the Game menu, N restarts.
+- **Game menu** (the flag button, or G): **Restart** starts the same game again from the beginning (same players, seats and house rules); **Set up a new game** goes back to setup, prefilled, to change anything. Online, the host can restart for everyone or end the online game, and a guest can leave. Each asks before discarding a game in progress.
+- **Undo** is off by default. Turn on "Undo and redo" in Settings to show the buttons (local games only; Ctrl+Z and Ctrl+Y or Ctrl+Shift+Z). Each undo goes back one step: first your move, back to the same roll so you can choose differently; then the roll itself. An undone move or roll isn't replayed automatically.
 - Refreshing the page keeps your game: it comes back paused.
 
 ### Settings
 
 The gear button (on setup, the join screen and in the game) opens Settings. Opening it pauses a local game.
 
-- **Playing:** Auto roll, Auto move, move buttons (on touch screens, always, or never).
-- **Sound:** on or off, volume, and a **sound style**: Classic, Tabla, Bansuri (flute), Sitar or Santoor. Each style has a play button for a sample, and "Try each sound" plays every game sound in the chosen style.
+- **Playing:** Auto roll, Auto move, Undo and redo, move buttons (on phones, meaning any touch screen or narrow window, which is the default; always; or never).
+- **Sound:** on or off, volume, and a **sound style**: Tabla (the default), Classic, Bansuri (flute), Sitar or Santoor. Each style has a play button for a sample, and "Try each sound" plays every game sound in the chosen style.
 - **Look:** System, Light or Dark theme.
-- **This game** (in a game only, kept apart at the bottom): New game, and Change setup, End online game or Leave. These always ask before doing anything.
+- **Undo and redo:** off by default (see above).
 
-Everything except the game actions is remembered between visits.
+Settings holds only preferences that can't lose a game. Restarting and leaving live in the **Game** menu.
+
+Everything except the game actions is remembered between visits. **Reset all settings to defaults** (at the bottom of the preferences) puts them back, including the house rules for new games. Defaults: auto roll and auto move off, all house rules on, Tabla sounds, System theme, move buttons on phones.
 
 ### House rules
 
-Three optional rules from childhood games, switched on in the **House rules** section of the setup screen (next to Comeback dice). They are fixed for the whole game, apply to bots too, and are shown in the rules sheet and in Settings → This game.
+Three rules from childhood games, **on by default**, each with a checkbox in the **House rules** section of the setup screen (next to Comeback dice). They are fixed for the whole game, apply to bots too, and are shown in the rules sheet and in the Game menu.
 
 - **Roll all your sixes first (R22):** after a 6 you keep rolling, and the dice are banked ("Banked: ⚅ ⚅"). Then you choose which die to use for each move: tap a die (or press **D**) to switch, then pick a marble as usual. Plan the order: a die nothing can use is lost.
 - **Walk across the centre (R23):** a marble starting on a star can go through the centre to any star, round the stars, or a mix, then down an arm. A single roll can offer a dozen destinations; the move buttons wrap onto extra rows.
@@ -109,9 +113,9 @@ Rules marked *house rule* are where the traditional rules are silent or vague. T
 | R19 | A player with all marbles home keeps taking turns while a teammate is still playing. Before their first roll they choose which unfinished teammate the turn is for, and move that teammate's marbles. The choice holds for the whole turn: a 6 rolls again for the same teammate. A move that brings the teammate (or the player) home ends the turn, even with a bonus roll or dice left. Comeback dice follow the teammate whose marbles move |
 | R20 | On such a turn the player may **pass** instead of rolling (*house rule*). Players who are still racing can't pass |
 | R21 | A team finishes when all its members have. Play continues until at most one team is left, which is ranked last; ending early ranks teams by their last member's place |
-| R22 | **Roll all your sixes first** (*house rule*, off by default): after a 6, roll again straight away until a roll isn't a 6. Then use the dice one at a time, on any marbles, in any order. Each step you must use a die if any can move; dice the chosen order leaves unusable are lost. Bringing your last marble home ends the turn. No extra roll after using a 6 (the bonus rolls were already made) |
-| R23 | **Walk across the centre** (*house rule*, off by default): a marble that starts its turn on a star walks a network of the stars and the centre, one hole per step: clockwise star to star, star to centre, centre to any star, never straight back to the hole it just left, and never past its own marbles. It may stop on a star and walk the rest down that star's arm, end in the centre, or come back to its own star. A marble starting in the centre still needs a 1 |
-| R24 | **Safe start holes** (*house rule*, off by default): a marble can't be bumped off its owner's start hole. Another player may land there and share it with the owner. The owner bringing a marble out of base still bumps whoever sits on their start. Nobody shares a hole with their own marble, and a visitor on someone else's start is not safe |
+| R22 | **Roll all your sixes first** (*house rule*, on by default): after a 6, roll again straight away until a roll isn't a 6. Then use the dice one at a time, on any marbles, in any order. Each step you must use a die if any can move; dice the chosen order leaves unusable are lost. Bringing your last marble home ends the turn. No extra roll after using a 6 (the bonus rolls were already made) |
+| R23 | **Walk across the centre** (*house rule*, on by default): a marble that starts its turn on a star walks a network of the stars and the centre, one hole per step: clockwise star to star, star to centre, centre to any star, never straight back to the hole it just left, and never past its own marbles. It may stop on a star and walk the rest down that star's arm, end in the centre, or come back to its own star. A marble starting in the centre still needs a 1 |
+| R24 | **Safe start holes** (*house rule*, on by default): a marble can't be bumped off its owner's start hole. Another player may land there and share it with the owner. The owner bringing a marble out of base still bumps whoever sits on their start. Nobody shares a hole with their own marble, and a visitor on someone else's start is not safe |
 
 **Online:** undo is off, and games never pause by themselves (one player switching tabs would stop everyone).
 

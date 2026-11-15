@@ -20,7 +20,10 @@ import { Icon } from './Icons'
 import { MovePad, type PadTarget } from './MovePad'
 import { PlayerPanel } from './PlayerPanel'
 import { RulesSheet } from './RulesSheet'
+import { GameMenu } from './GameMenu'
 import { SettingsSheet } from './SettingsSheet'
+import { SHEET_QUERY } from './Sheet'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { TeamTurn } from './TeamTurn'
 import { ToolButton } from './Toolbar'
 import { WinOverlay } from './WinOverlay'
@@ -28,7 +31,7 @@ import { WinOverlay } from './WinOverlay'
 /** A confirmation waiting on screen: leave for setup, or start a new game. */
 type PendingAction = 'settings' | 'new' | null
 /** The sheet open over the game, if any. */
-type OpenSheet = 'rules' | 'settings' | null
+type OpenSheet = 'rules' | 'settings' | 'game' | null
 
 /** "Your turn." for the default name, otherwise addresses the player by name. */
 function turnOf(name: string): string {
@@ -76,8 +79,9 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const helperTurn = isHelperTurn(game)
   const canRoll = humanTurn && game.phase === 'roll' && !busy && !paused && !helperTurn
   const canPick = humanTurn && game.phase === 'move' && !busy && !paused
-  // Move buttons: on touch screens by default, where board pieces are smaller than a fingertip.
-  const showPad = moveButtons === 'on' || (moveButtons === 'auto' && IS_TOUCH)
+  // Move buttons: on phones by default (touch, or a narrow screen), where board pieces are smaller than a fingertip.
+  const phoneSized = useMediaQuery(SHEET_QUERY)
+  const showPad = moveButtons === 'on' || (moveButtons === 'auto' && (IS_TOUCH || phoneSized))
   const teams = hasTeams(game.players)
   const pickable = canPick ? [...new Set(dieMoves.map((m) => m.marbleId))] : []
   const usableDice = new Set(game.legalMoves.map((m) => m.die))
@@ -127,8 +131,9 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   }
   const openRules = () => openSheet('rules')
   const openSettings = () => openSheet('settings')
-  /** From the settings sheet: close it, then ask before ending or restarting the game. */
-  const fromSettings = (action: () => void) => () => {
+  const openGameMenu = () => openSheet('game')
+  /** From the game menu: close it, then ask before ending or restarting the game. */
+  const fromMenu = (action: () => void) => () => {
     closeSheet()
     action()
   }
@@ -146,6 +151,22 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
     } else {
       setHint(null)
     }
+  }
+
+  const undoOn = useGameStore((s) => s.settings.undo) && !online
+  /**
+   * Moves keyboard focus to the next (or previous) pickable marble, or
+   * numbered hole when a marble is picked. Focus previews the path, and Enter
+   * on the focused piece chooses it (each piece is a button).
+   */
+  const cycleFocus = (dir: 1 | -1) => {
+    if (!canPick) return false
+    const selector = selected !== null ? '[data-testid^="destination-"]' : '.marble-pickable'
+    const pieces = [...document.querySelectorAll<SVGGElement>(`svg.board ${selector}`)]
+    if (pieces.length === 0) return false
+    const at = pieces.indexOf(document.activeElement as SVGGElement)
+    const next = at < 0 ? (dir === 1 ? 0 : pieces.length - 1) : (at + dir + pieces.length) % pieces.length
+    pieces[next]!.focus()
   }
 
   /** Digit keys: a destination while badges are up, otherwise a marble. */
@@ -170,8 +191,14 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         if (selected === null) return false
         cancelSelection()
       },
-      ArrowLeft: () => (canUndo ? void undo() : false),
-      ArrowRight: () => (canRedo ? void redo() : false),
+      // Arrow keys step through the marbles you can pick, or the numbered holes once a marble is
+      // picked, previewing each; Enter chooses. Works for any number of destinations.
+      ArrowLeft: () => cycleFocus(-1),
+      ArrowRight: () => cycleFocus(1),
+      ArrowUp: () => cycleFocus(-1),
+      ArrowDown: () => cycleFocus(1),
+      ...(undoOn ? { 'mod+z': () => (canUndo ? void undo() : false), 'mod+y': () => (canRedo ? void redo() : false), 'mod+shift+z': () => (canRedo ? void redo() : false) } : {}),
+      g: openGameMenu,
       p: () => {
         if (!gameOver && canPause) togglePause()
       },
@@ -219,12 +246,12 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   else if (selected !== null)
     prompt = IS_TOUCH
       ? `${rolledText} Tap a numbered hole for marble ${selected + 1}, or tap the marble again to go back.`
-      : `${rolledText} Pick where marble ${selected + 1} goes: press ${destinations.length > 9 ? '1–9 or click a number' : `1–${destinations.length}`}, or Esc to go back.`
+      : `${rolledText} Pick where marble ${selected + 1} goes: press ${destinations.length > 9 ? '1–9' : `1–${destinations.length}`} or use ← → and Enter, or Esc to go back.`
   else if (showPad) prompt = `${rolledText} Tap a glowing marble, or its number below.${usableDice.size > 1 ? ' Tap a die to switch.' : ''}`
   else
     prompt = IS_TOUCH
       ? `${rolledText} Tap a glowing marble.${usableDice.size > 1 ? ' Tap a die to switch.' : ''}`
-      : `${rolledText} Pick a marble: press 1–4 or click a glowing one.${usableDice.size > 1 ? ' D switches die.' : ''}`
+      : `${rolledText} Pick a marble: press 1–4, use ← → and Enter, or click a glowing one.${usableDice.size > 1 ? ' D switches die.' : ''}`
 
   return (
     <section className="game" aria-label="Star Hop game">
@@ -237,13 +264,14 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           </span>
         </div>
         <div className="toolbar-actions">
-          {!online && <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="ArrowLeft" shortcutLabel="←" />}
-          {!online && <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="ArrowRight" shortcutLabel="→" />}
+          {undoOn && <ToolButton icon="undo" label="Undo" onClick={undo} disabled={!canUndo} shortcut="Control+Z" shortcutLabel="Ctrl+Z" />}
+          {undoOn && <ToolButton icon="redo" label="Redo" onClick={redo} disabled={!canRedo} shortcut="Control+Y" shortcutLabel="Ctrl+Y" />}
           {canPause && (
             <ToolButton icon={paused ? 'play' : 'pause'} label={paused ? 'Resume' : 'Pause'} onClick={togglePause} disabled={gameOver} pressed={paused} shortcut="P" shortcutLabel="P" />
           )}
           <ToolButton icon="book" label="Rules" onClick={openRules} shortcut="?" shortcutLabel="?" />
           <ToolButton icon="gear" label="Settings" onClick={openSettings} shortcut="S" shortcutLabel="S" />
+          <ToolButton icon="flag" label="Game" onClick={openGameMenu} shortcut="G" shortcutLabel="G" />
         </div>
       </header>
 
@@ -349,6 +377,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
               selectedDie={selectedDie}
               usable={(d) => usableDice.has(d)}
               interactive={canPick}
+              keyHint={!IS_TOUCH}
               onSelect={selectDie}
             />
             <p className="prompt" aria-live="polite">
@@ -387,39 +416,38 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
       </p>
 
       <RulesSheet open={sheet === 'rules'} onClose={closeSheet} />
-      <SettingsSheet
-        open={sheet === 'settings'}
+      <SettingsSheet open={sheet === 'settings'} onClose={closeSheet} />
+      <GameMenu
+        open={sheet === 'game'}
         onClose={closeSheet}
-        gameSection={
-          <div className="settings-game">
-            <p className="setting-hint">
-              House rules: {HOUSE_RULE_KEYS.filter((k) => game.rules?.[k]).map((k) => HOUSE_RULE_TEXT[k].title).join(', ') || 'none'}.
-              They are chosen on the setup screen.
-            </p>
-            <p className="setting-hint">These end or restart the game, so they always ask first.</p>
-            {!isGuest && (
-              <button type="button" onClick={fromSettings(requestNew)} disabled={!configs && role !== 'host'}>
-                <Icon name="restart" /> New game
-              </button>
-            )}
-            <button type="button" className="danger-outline" onClick={fromSettings(requestSettings)}>
-              <Icon name={online ? 'close' : 'list'} /> {role === 'host' ? 'End online game' : isGuest ? 'Leave game' : 'Change setup'}
-            </button>
-          </div>
-        }
+        role={role}
+        canRestart={configs !== null || role === 'host'}
+        rulesText={HOUSE_RULE_KEYS.filter((k) => game.rules?.[k]).map((k) => HOUSE_RULE_TEXT[k].title).join(', ') || 'none'}
+        onRestart={fromMenu(requestNew)}
+        onLeave={fromMenu(requestSettings)}
       />
 
       {pending && (
         <ConfirmDialog
-          title={role === 'host' && pending === 'settings' ? 'End the online game?' : isGuest ? 'Leave this game?' : 'Abandon the current game?'}
+          title={
+            role === 'host' && pending === 'settings'
+              ? 'End the online game?'
+              : isGuest
+                ? 'Leave this game?'
+                : pending === 'new'
+                  ? 'Restart this game?'
+                  : 'Leave this game for setup?'
+          }
           message={
             role === 'host' && pending === 'settings'
               ? 'This ends the game for everyone and closes the invite link.'
               : isGuest
                 ? 'You will leave the game. The host can let a bot take your seat.'
-                : role === 'host'
-                  ? 'This game is still in progress. A new game starts for everyone with the same seats.'
-                  : 'This game is still in progress. Abandoning it discards it for good.'
+                : pending === 'new'
+                  ? role === 'host'
+                    ? 'The game starts again from the beginning for everyone, with the same seats and house rules.'
+                    : 'The game starts again from the beginning, with the same players and house rules. This game is discarded.'
+                  : 'This game is still in progress and will be discarded. Setup opens with the same players, ready to change.'
           }
           confirmLabel={
             role === 'host' && pending === 'settings'
@@ -427,8 +455,8 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
               : isGuest
                 ? 'Leave'
                 : pending === 'settings'
-                  ? 'Abandon and change setup'
-                  : 'Abandon and start new'
+                  ? 'Discard and set up'
+                  : 'Restart'
           }
           cancelLabel="Keep playing"
           onConfirm={confirmPending}
@@ -457,7 +485,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
           names={Object.fromEntries(game.players.map((p) => [p.color, p.name]))}
           onNewGame={isGuest || !configs ? undefined : doNew}
           onSetup={doSettings}
-          setupLabel={role === 'host' ? 'End online game' : isGuest ? 'Leave' : undefined}
+          setupLabel={role === 'host' ? 'End online game' : isGuest ? 'Leave' : 'Set up a new game'}
           note={isGuest ? 'Waiting for the host to start another game...' : undefined}
         />
       )}

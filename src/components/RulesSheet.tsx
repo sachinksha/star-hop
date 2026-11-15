@@ -165,10 +165,13 @@ export function RulesContent() {
           <li>{tap} a glowing marble to move it.</li>
           <li>
             If it can go to more than one place, numbered circles show the choices. {tap} one to go there
-            {IS_TOUCH ? ', or tap the marble again to go back.' : '. Press 1, 2, 3... or Esc to go back.'}
+            {IS_TOUCH
+              ? ', or tap the marble again to go back.'
+              : '. On the keyboard, press its number (1–9), or step through them with ← → and press Enter; Esc goes back.'}
           </li>
           {IS_TOUCH && <li>The big numbered buttons under the board match the numbers on the marbles and circles. Press one to see which piece it means, and lift your finger to choose.</li>}
-          <li>Auto roll, Auto move, sounds and the theme are in Settings (the gear button).</li>
+          <li>Auto roll, Auto move, Undo, sounds and the theme are in Settings (the gear button).</li>
+          <li>To restart the game, or set up a different one, use the Game button (the flag).</li>
         </ul>
       </section>
     </div>
