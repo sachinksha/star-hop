@@ -92,6 +92,11 @@ describe('createGame', () => {
     expect(displayNames([{ color: 'red', kind: 'human', name: 'player 2' }, { color: 'blue', kind: 'human' }])).toEqual(['player 2', 'Player 3'])
   })
 
+  it('numbers players clockwise from the seat marked as yours', () => {
+    const seats = (['red', 'yellow', 'blue'] as const).map((color) => ({ color, kind: 'human' as const, you: color === 'yellow' }))
+    expect(displayNames(seats)).toEqual(['Player 3', 'Player 1', 'Player 2'])
+  })
+
   it('tells made-up names from chosen ones', () => {
     expect(['You', 'Host', 'Player 2', 'friend 3', 'Bot 1'].every(isDefaultName)).toBe(true)
     expect(['Ana', 'Player', 'Player Two', 'Bot1x'].some(isDefaultName)).toBe(false)

@@ -18,7 +18,7 @@ describe('SetupScreen', () => {
     fireEvent.click(startButton())
     expect(onStart).toHaveBeenCalledWith(
       [
-        { color: 'red', kind: 'human' },
+        { color: 'red', kind: 'human', you: true },
         { color: 'orange', kind: 'bot' },
         { color: 'green', kind: 'bot' },
         { color: 'blue', kind: 'bot' },
@@ -96,6 +96,30 @@ describe('SetupScreen', () => {
     expect(seat('Blue')).toHaveValue('human')
   })
 
+  it('keeps the seat you chose as yours when other seats become human (Player 1, at the bottom)', () => {
+    const onStart = vi.fn()
+    render(<SetupScreen onStart={onStart} />)
+    const area = (name: string) => (seat(name).closest('.seat-card') as HTMLElement).style.gridArea
+    const nameOf = (colour: string) => (screen.getByRole('textbox', { name: `${colour} player name` }) as HTMLInputElement).value
+    fireEvent.click(screen.getByRole('button', { name: 'Sit at Yellow' }))
+    setSeat('Blue', 'human')
+    expect([nameOf('Yellow'), nameOf('Blue')]).toEqual(['Player 1', 'Player 2'])
+    // Red comes first in colour order, but yellow is still your seat.
+    setSeat('Red', 'human')
+    expect(area('Yellow')).toBe('b')
+    expect([nameOf('Yellow'), nameOf('Blue'), nameOf('Red')]).toEqual(['Player 1', 'Player 2', 'Player 3'])
+    fireEvent.click(startButton())
+    expect(onStart.mock.calls[0]![0].find((c: { you?: boolean }) => c.you)).toMatchObject({ color: 'yellow' })
+  })
+
+  it('moves "you" to the next human seat clockwise if your seat becomes a bot', () => {
+    render(<SetupScreen onStart={vi.fn()} />)
+    const area = (name: string) => (seat(name).closest('.seat-card') as HTMLElement).style.gridArea
+    setSeat('Green', 'human')
+    setSeat('Red', 'bot')
+    expect(area('Green')).toBe('b')
+  })
+
   it("doesn't call a remembered default name taken when seats move (the 'Player 2' bug)", () => {
     // The last game had two local players, saved with their default names.
     const initial = [
@@ -146,7 +170,7 @@ describe('SetupScreen', () => {
     fireEvent.change(second, { target: { value: 'Ana' } })
     fireEvent.click(startButton())
     expect(onStart.mock.calls[0]![0].slice(0, 2)).toEqual([
-      { color: 'red', kind: 'human' },
+      { color: 'red', kind: 'human', you: true },
       { color: 'orange', kind: 'human', name: 'Ana' },
     ])
   })
@@ -167,7 +191,7 @@ describe('SetupScreen', () => {
     expect(onStart).toHaveBeenCalledWith(
       [
         { color: 'yellow', kind: 'bot' },
-        { color: 'purple', kind: 'human', name: 'Zed' },
+        { color: 'purple', kind: 'human', name: 'Zed', you: true },
       ],
       false,
     )
@@ -186,7 +210,7 @@ describe('SetupScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
     expect(onStart).toHaveBeenCalledWith(
       [
-        { color: 'red', kind: 'human' },
+        { color: 'red', kind: 'human', you: true },
         { color: 'orange', kind: 'human', remote: true },
         { color: 'green', kind: 'bot' },
         { color: 'blue', kind: 'bot' },
@@ -201,7 +225,7 @@ describe('SetupScreen', () => {
     expect(screen.getByRole('radio', { name: 'Online (invite link)' })).toBeChecked()
     fireEvent.click(screen.getByRole('radio', { name: 'On this device' }))
     fireEvent.click(startButton())
-    expect(onStart).toHaveBeenCalledWith([{ color: 'red', kind: 'bot' }, { color: 'green', kind: 'human' }], false)
+    expect(onStart).toHaveBeenCalledWith([{ color: 'red', kind: 'bot' }, { color: 'green', kind: 'human', you: true }], false)
   })
 
   it('switches comeback dice in the saved settings', () => {

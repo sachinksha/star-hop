@@ -229,6 +229,8 @@ export type GameAction =
  * A seat chosen on the setup screen. `name` is an optional display label for
  * humans. `remote` marks a human seat played from another device (online).
  * `team` groups seats into teams (0, 1, 2); leave it out for solo play.
+ * `you` marks the seat this device's player chose as their own: it is drawn
+ * at the bottom of the board, and players are numbered clockwise from it.
  */
 export type PlayerConfig = {
   color: Color
@@ -236,4 +238,5 @@ export type PlayerConfig = {
   name?: string
   remote?: boolean
   team?: number
+  you?: boolean
 }

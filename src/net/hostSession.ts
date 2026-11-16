@@ -38,6 +38,8 @@ interface Seat {
   name: string
   /** Team number in team play. */
   team?: number
+  /** The host's own seat (drawn at the bottom on the host's screen). */
+  you?: boolean
   /** Lets a guest who disconnected reclaim this seat. Null until claimed. */
   secret: string | null
   channel: Channel | null
@@ -89,6 +91,7 @@ export class HostSession {
       remote: c.kind === 'human' && c.remote === true,
       name: names[i]!,
       ...(c.team !== undefined ? { team: c.team } : {}),
+      ...(c.you ? { you: true } : {}),
       secret: null,
       channel: null,
     }))
@@ -135,9 +138,10 @@ export class HostSession {
     this.changed()
     return this.seats.map((s) => {
       const team = s.team !== undefined ? { team: s.team } : {}
+      const you = s.you && s.kind === 'human' && !s.remote ? { you: true } : {}
       return s.remote
         ? { color: s.color, kind: 'human', remote: true, name: s.name, ...team }
-        : { color: s.color, kind: s.kind, ...(s.kind === 'human' ? { name: s.name } : {}), ...team }
+        : { color: s.color, kind: s.kind, ...(s.kind === 'human' ? { name: s.name } : {}), ...team, ...you }
     })
   }
 

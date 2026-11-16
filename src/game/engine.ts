@@ -105,6 +105,9 @@ export function rollFor(state: GameState, rng: Rng, comeback: boolean, forColor?
  * A generated name never repeats a custom one: if a player typed "Player 2",
  * the next default skips to "Player 3", so moving seats around can't create a
  * clash the player didn't make.
+ *
+ * Numbering goes clockwise starting from the seat marked `you`, so your own
+ * seat is "Player 1" and the others follow round the board from there.
  */
 export function displayNames(configs: PlayerConfig[]): string[] {
   const local = configs.filter((c) => c.kind === 'human' && !c.remote).length
@@ -120,7 +123,13 @@ export function displayNames(configs: PlayerConfig[]): string[] {
     used.add(name.toLowerCase())
     return name
   }
-  return configs.map((c) => {
+  const start = Math.max(0, configs.findIndex((c) => c.you))
+  const order = configs.map((_, i) => (start + i) % configs.length)
+  const names: string[] = []
+  for (const i of order) names[i] = nameOf(configs[i]!)
+  return names
+
+  function nameOf(c: PlayerConfig): string {
     if (c.kind === 'bot') return next('Bot')
     const own = c.name?.trim()
     if (c.remote) {
@@ -136,7 +145,7 @@ export function displayNames(configs: PlayerConfig[]): string[] {
     }
     if (local === 1) return online ? 'Host' : 'You'
     return next('Player')
-  })
+  }
 }
 
 /** True for a name the game makes up ("You", "Host", "Player 2"...), as opposed to one a player chose. */

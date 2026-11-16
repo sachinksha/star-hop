@@ -69,7 +69,9 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   const [hint, setHint] = useState<{ seq: number; text: string } | null>(null)
   // This device's player sits at the bottom. Fixed for the game, so the board never spins.
   const [bottom] = useState(() => {
-    const me = game.players.find((p) => isMine(p.color))
+    // The seat chosen as "yours" on setup, else this device's first player.
+    const chosen = configs?.find((c) => c.you)?.color
+    const me = game.players.find((p) => p.color === chosen && isMine(p.color)) ?? game.players.find((p) => isMine(p.color))
     return me ? armOf(me.color) : 0
   })
 

@@ -58,6 +58,14 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
   const [kinds, setKinds] = useState<Partial<Record<Color, SeatKind>>>(() =>
     valid0 ? Object.fromEntries(valid0.map((c) => [c.color, c.remote ? 'friend' : c.kind])) : { red: 'human' },
   )
+  /**
+   * The seat this device's player chose as their own: drawn at the bottom
+   * here and in the game, and numbered first. It only changes when the player
+   * says so (Sit here, the arrows) or stops being a human seat.
+   */
+  const [chosenSeat, setChosenSeat] = useState<Color | null>(
+    () => valid0?.find((c) => c.you && c.kind === 'human' && !c.remote)?.color ?? valid0?.find((c) => c.kind === 'human' && !c.remote)?.color ?? 'red',
+  )
   /** Number of teams, or 0 for everyone on their own. Only offered for 4 and 6 players. */
   const [teamCount, setTeamCount] = useState<number>(() =>
     valid0?.every((c) => c.team !== undefined) ? new Set(valid0.map((c) => c.team)).size : 0,
@@ -80,18 +88,25 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
     const kind = kinds[c] ?? 'bot'
     return play === 'local' && kind === 'friend' ? 'human' : kind
   }
+  // Your seat: the one you chose, while it is still a human seat on this device. Otherwise
+  // the next human seat clockwise from it (or from the top), so there is always one if any.
+  const humanSeats = seats.filter((c) => kindOf(c) === 'human')
+  const mySeat: Color | null =
+    chosenSeat && humanSeats.includes(chosenSeat)
+      ? chosenSeat
+      : (humanSeats.find((c) => armOf(c) > armOf(chosenSeat ?? 'red')) ?? humanSeats[0] ?? null)
+  // The game draws your seat at the bottom; setup shows the same view.
+  const bottom = armOf(mySeat ?? seats[0] ?? 'red')
+
   const configsFor = (custom: boolean): PlayerConfig[] =>
     seats.map((color, i) => {
       const kind = kindOf(color)
       const team = teams ? { team: teams[i]! } : {}
       if (kind === 'friend') return { color, kind: 'human', remote: true, ...team }
       const name = custom && kind === 'human' ? names[color]?.trim() : undefined
-      return name ? { color, kind, name, ...team } : { color, kind, ...team }
+      const you = color === mySeat ? { you: true } : {}
+      return name ? { color, kind, name, ...team, ...you } : { color, kind, ...team, ...you }
     })
-
-  // The game draws this device's first human seat at the bottom; setup shows the same view.
-  const mySeat = seats.find((c) => kindOf(c) === 'human') ?? null
-  const bottom = armOf(mySeat ?? seats[0] ?? 'red')
 
   const defaults = displayNames(configsFor(false))
   const shown = seats.map((color, i) => {
@@ -138,6 +153,7 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
    */
   const sitHere = (color: Color) => {
     if (!mySeat || color === mySeat) return
+    setChosenSeat(color)
     setArms(armsWith(color))
     const theirs = kindOf(color)
     setKinds((prev) => ({ ...prev, [mySeat]: arms.includes(color) ? theirs : 'bot', [color]: 'human' }))
@@ -160,6 +176,8 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
     const at = (i: number) => seats[(i + dir + n) % n]!
     setKinds((prev) => Object.fromEntries(seats.map((c, i) => [at(i), prev[c] ?? 'bot'])))
     setNames((prev) => Object.fromEntries(seats.flatMap((c, i) => (prev[c] !== undefined ? [[at(i), prev[c]]] : []))))
+    // You move round with everyone else.
+    if (mySeat) setChosenSeat(at(seats.indexOf(mySeat)))
   }
 
   return (
@@ -254,7 +272,14 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
                   className="seat-kind-select"
                   aria-label={`${COLOR_NAME[color]} seat`}
                   value={kind}
-                  onChange={(e) => setKinds((prev) => ({ ...prev, [color]: e.target.value as SeatKind }))}
+                  onChange={(e) => {
+                    const next = e.target.value as SeatKind
+                    setKinds((prev) => ({ ...prev, [color]: next }))
+                    // The first human seat on an empty table becomes yours; otherwise yours stays put.
+                    if (next === 'human' && !mySeat) setChosenSeat(color)
+                    // Giving up your own seat: you move to the next human seat (mySeat works that out).
+                    if (color === mySeat && next !== 'human') setChosenSeat(color)
+                  }}
                 >
                   {SEAT_KINDS[play].map((k) => (
                     <option key={k} value={k}>
