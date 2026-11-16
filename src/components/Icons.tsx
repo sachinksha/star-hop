@@ -1,5 +1,5 @@
 /** Small inline SVG icons. They use currentColor so they follow button text colour. */
-export type IconName = 'undo' | 'redo' | 'pause' | 'play' | 'speaker' | 'gear' | 'restart' | 'list' | 'clock' | 'dice' | 'robot' | 'forward' | 'home' | 'sun' | 'moon' | 'monitor' | 'book' | 'close' | 'flag'
+export type IconName = 'undo' | 'redo' | 'pause' | 'play' | 'speaker' | 'gear' | 'restart' | 'list' | 'clock' | 'dice' | 'robot' | 'forward' | 'home' | 'sun' | 'moon' | 'monitor' | 'book' | 'close' | 'flag' | 'rotateLeft' | 'rotateRight'
 
 const PATHS: Record<IconName, string> = {
   undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
@@ -19,6 +19,8 @@ const PATHS: Record<IconName, string> = {
   book: 'M4.5 5.5A2 2 0 0 1 6.5 4H12v15H6.5a2 2 0 0 0-2 1.5zM19.5 5.5A2 2 0 0 0 17.5 4H12v15h5.5a2 2 0 0 1 2 1.5zM4.5 5.5v15M19.5 5.5v15',
   close: 'M6 6l12 12M18 6 6 18',
   flag: 'M5 21V4M5 4h12l-2.5 4L17 12H5',
+  rotateLeft: 'M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4',
+  rotateRight: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4',
   home: 'M4 11.5 12 5l8 6.5M6.5 10v9h11v-9',
   dice: 'M6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11A2.5 2.5 0 0 1 6.5 4zM8.5 8.5h.01M15.5 15.5h.01M12 12h.01',
 }

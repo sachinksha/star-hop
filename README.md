@@ -15,7 +15,7 @@ npm run build   # typecheck and production build
 
 ## How to play
 
-Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human or Bot. The seats are laid out around a small picture of the board, exactly as the game will show them, with your seat at the bottom; tap an empty arm to seat someone there. With 4 or 6 players you can also play in **teams** (see below). Your arm is drawn at the bottom of the board.
+Pick 2 to 6 players, choose which arms they sit at, and set each seat to Human or Bot. The seats are laid out around a small picture of the board, exactly as the game will show them, with your seat at the bottom. To play a particular colour (and, in teams, a particular team), tap **Sit here** on that seat or empty arm: you swap places with whoever sat there and keep your name. The arrows beside the little board move everyone one seat round, keeping the team pattern. **Add a seat** on an empty arm uses it instead of the oldest other seat (never yours). Each seat's menu sets Human, Bot or Online. With 4 or 6 players you can also play in **teams** (see below). Your arm is drawn at the bottom of the board.
 
 - **Roll:** press Space or tap the die. With Auto roll on (off by default; turn it on in Settings) your die rolls by itself.
 - **Pick a marble:** marbles you can move glow. Tap one, or press its number (1 to 4). If it can only go one place, it moves straight away. With Auto move on (off by default), a roll that leaves no real choice plays itself.

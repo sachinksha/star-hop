@@ -90,6 +90,8 @@ Ludo already has partner play conventions. If adding teams there, take from Star
 - **A bigger move list slowed the bots.** Exploring every first move with two dice took up to a quarter of a second with 50+ moves; capping the follow-ups fixed it. Profile the worst case, not the average.
 - **Assuming one marble per hole** in drawing code: two marbles on a shared start were drawn on top of each other until the board learned to shrink and offset them (as Ludo does with `stackOffset`).
 - **Layout shift from the turn card.** Banked dice, teammate buttons and long prompts changed the card's height and moved the board by up to 131 px on a phone. Fixed as in Ludo: a reserved action row, short two-line prompts on phones, one row of team buttons, and the hint borrowing the prompt line. Measure the board's position through real turns to prove it (now 0 px).
+- **Saved default names became "custom" names.** A finished game's seats were remembered with names like "Player 2" or "Host"; setup reloaded them as typed names, and moving seats then produced "Name is already taken". Now setup ignores remembered default names, and `displayNames` never generates a name that repeats a chosen one.
+- **Implicit seat defaults.** "The first seat is human" depended on which arm sorted first, so adding an arm could turn a bot into a human. Seats now default to Bot explicitly; "Sit here" and the rotate arrows make choosing your colour direct.
 - **Tap snapping aimed at the hole's centre**, not where a shrunken shared marble is drawn.
 
 ## 6. Checklist for adding any new rule

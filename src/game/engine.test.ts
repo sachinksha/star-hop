@@ -7,6 +7,7 @@ import {
   applyMove,
   createGame,
   displayNames,
+  isDefaultName,
   endGame,
   entryChance,
   isStuck,
@@ -78,6 +79,22 @@ describe('createGame', () => {
       ]),
     ).toEqual(['Host', 'Friend 1'])
     expect(displayNames([{ color: 'red', kind: 'human', name: ' Ana ' }, { color: 'blue', kind: 'human' }])).toEqual(['Ana', 'Player 2'])
+
+  })
+
+  it('never makes up a name that clashes with one a player chose', () => {
+    // Blue typed "Player 1": red's default skips to the next free number, and no two names clash.
+    expect(displayNames([{ color: 'red', kind: 'human' }, { color: 'blue', kind: 'human', name: 'Player 1' }, { color: 'green', kind: 'human' }])).toEqual([
+      'Player 2',
+      'Player 1',
+      'Player 4',
+    ])
+    expect(displayNames([{ color: 'red', kind: 'human', name: 'player 2' }, { color: 'blue', kind: 'human' }])).toEqual(['player 2', 'Player 3'])
+  })
+
+  it('tells made-up names from chosen ones', () => {
+    expect(['You', 'Host', 'Player 2', 'friend 3', 'Bot 1'].every(isDefaultName)).toBe(true)
+    expect(['Ana', 'Player', 'Player Two', 'Bot1x'].some(isDefaultName)).toBe(false)
   })
 })
 

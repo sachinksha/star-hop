@@ -38,15 +38,78 @@ describe('SetupScreen', () => {
     expect(screen.getAllByRole('combobox', { name: / seat$/ })).toHaveLength(6)
   })
 
-  it('seats a player on an empty arm, replacing the oldest pick', () => {
+  it('adds a seat on an empty arm, replacing the oldest pick but never your own seat', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)
     fireEvent.click(screen.getByRole('radio', { name: '2' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Purple arm: empty. Seat a player here' }))
-    expect(seat('Purple')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Red arm: empty. Seat a player here' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a seat on Purple' }))
+    expect(seat('Purple')).toHaveValue('bot')
+    expect(seat('Red')).toHaveValue('human')
     fireEvent.click(startButton())
-    expect(onStart.mock.calls[0]![0].map((c: { color: string }) => c.color)).toEqual(['green', 'purple'])
+    expect(onStart.mock.calls[0]![0].map((c: { color: string; kind: string }) => [c.color, c.kind])).toEqual([
+      ['red', 'human'],
+      ['purple', 'bot'],
+    ])
+  })
+
+  it('moves you to another colour with Sit here, swapping with whoever sat there', () => {
+    const onStart = vi.fn()
+    render(<SetupScreen onStart={onStart} />)
+    fireEvent.click(screen.getByRole('radio', { name: '2 teams of 2' }))
+    fireEvent.change(screen.getAllByRole('textbox')[0]!, { target: { value: 'Asha' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sit at Blue' }))
+    expect(seat('Blue')).toHaveValue('human')
+    expect(seat('Red')).toHaveValue('bot')
+    fireEvent.click(startButton())
+    const blue = onStart.mock.calls[0]![0].find((c: { color: string }) => c.color === 'blue')
+    // Your name came with you, and blue's team is now yours.
+    expect(blue).toMatchObject({ kind: 'human', name: 'Asha', team: 1 })
+  })
+
+  it('can sit on an empty arm in one tap', () => {
+    render(<SetupScreen onStart={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sit at Purple' }))
+    expect(seat('Purple')).toHaveValue('human')
+    expect(seat('Red')).toHaveValue('bot') // your old seat stays, played by a bot
+    expect(screen.getAllByRole('combobox', { name: / seat$/ })).toHaveLength(4)
+  })
+
+  it('turns everyone round a seat with the arrows, keeping the team pattern', () => {
+    const onStart = vi.fn()
+    render(<SetupScreen onStart={onStart} />)
+    fireEvent.click(screen.getByRole('radio', { name: '2 teams of 2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move everyone one seat clockwise' }))
+    expect(seat('Orange')).toHaveValue('human')
+    fireEvent.click(screen.getByRole('button', { name: 'Move everyone one seat anticlockwise' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move everyone one seat anticlockwise' }))
+    expect(seat('Blue')).toHaveValue('human')
+    fireEvent.click(startButton())
+    expect(onStart.mock.calls[0]![0].map((c: { color: string; team: number }) => c.team)).toEqual([0, 1, 0, 1])
+  })
+
+  it('keeps your colour when the number of players changes', () => {
+    render(<SetupScreen onStart={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sit at Blue' }))
+    fireEvent.click(screen.getByRole('radio', { name: '3' }))
+    expect(seat('Blue')).toHaveValue('human')
+    fireEvent.click(screen.getByRole('radio', { name: '2' }))
+    expect(seat('Blue')).toHaveValue('human')
+  })
+
+  it("doesn't call a remembered default name taken when seats move (the 'Player 2' bug)", () => {
+    // The last game had two local players, saved with their default names.
+    const initial = [
+      { color: 'red' as const, kind: 'human' as const, name: 'Player 1' },
+      { color: 'orange' as const, kind: 'human' as const, name: 'Player 2' },
+      { color: 'green' as const, kind: 'bot' as const },
+      { color: 'blue' as const, kind: 'bot' as const },
+    ]
+    render(<SetupScreen onStart={vi.fn()} initial={initial} />)
+    setSeat('Orange', 'bot')
+    setSeat('Green', 'human')
+    setSeat('Blue', 'human')
+    expect(screen.queryByText('Name is already taken.')).toBeNull()
+    expect(startButton()).toBeEnabled()
   })
 
   it('lays the seats out like the board, with your seat at the bottom', () => {

@@ -101,28 +101,47 @@ export function rollFor(state: GameState, rng: Rng, comeback: boolean, forColor?
  * online seats are "Friend 1"..., and local humans are "Player 1"... A single
  * local human is "You", or "Host" in an online game (where "You" would be
  * wrong on everyone else's screen).
+ *
+ * A generated name never repeats a custom one: if a player typed "Player 2",
+ * the next default skips to "Player 3", so moving seats around can't create a
+ * clash the player didn't make.
  */
 export function displayNames(configs: PlayerConfig[]): string[] {
   const local = configs.filter((c) => c.kind === 'human' && !c.remote).length
   const online = configs.some((c) => c.remote)
-  let bot = 0
-  let player = 0
-  let friend = 0
+  const custom = new Set(configs.filter((c) => c.kind === 'human').map((c) => c.name?.trim().toLowerCase()).filter((n): n is string => !!n))
+  // Seats are numbered in order, named or not ("Ana", then "Player 2"); a number already
+  // taken by a custom name is skipped.
+  const counters = { Bot: 0, Player: 0, Friend: 0 }
+  const used = new Set(custom)
+  const next = (prefix: keyof typeof counters) => {
+    let name = `${prefix} ${++counters[prefix]}`
+    while (used.has(name.toLowerCase())) name = `${prefix} ${++counters[prefix]}`
+    used.add(name.toLowerCase())
+    return name
+  }
   return configs.map((c) => {
-    if (c.kind === 'bot') {
-      bot += 1
-      return `Bot ${bot}`
-    }
-    const custom = c.name?.trim()
+    if (c.kind === 'bot') return next('Bot')
+    const own = c.name?.trim()
     if (c.remote) {
-      friend += 1
-      return custom || `Friend ${friend}`
+      if (own) {
+        counters.Friend++
+        return own
+      }
+      return next('Friend')
     }
-    player += 1
-    if (custom) return custom
+    if (own) {
+      counters.Player++
+      return own
+    }
     if (local === 1) return online ? 'Host' : 'You'
-    return `Player ${player}`
+    return next('Player')
   })
+}
+
+/** True for a name the game makes up ("You", "Host", "Player 2"...), as opposed to one a player chose. */
+export function isDefaultName(name: string): boolean {
+  return /^(you|host|(player|friend|bot) \d+)$/i.test(name.trim())
 }
 
 /**
