@@ -12,6 +12,7 @@ For the deeper explanations, see the study guide: [chapter 12](docs/12-teams.md)
 4. [Porting the team rules to Ludo](#4-porting-the-team-rules-to-ludo)
 5. [Pitfalls we hit](#5-pitfalls-we-hit)
 6. [Checklist for adding any new rule](#6-checklist-for-adding-any-new-rule)
+7. [Hosting online play for free](#7-hosting-online-play-for-free)
 
 ---
 
@@ -105,3 +106,43 @@ Ludo already has partner play conventions. If adding teams there, take from Star
 6. Bots: does the scorer understand it? Measure decision time.
 7. UI: try the extremes (most destinations, most dice).
 8. Rules sheet, README table, setup text, guide.
+
+## 7. Hosting online play for free
+
+Applies equally to Ludo: both games use the same network layer and the same `/api/turn` endpoint.
+
+### What actually costs anything
+
+- **Game traffic goes browser to browser** over WebRTC. The host's browser runs the game; there is no game server.
+- **The free public PeerJS server** introduces the browsers (signalling). Free, but with no guarantees.
+- **A TURN relay** carries the traffic only when two browsers can't connect directly: carrier-grade NAT on mobile data, strict office or hotel Wi-Fi. Everyone else never touches it. Vercel only runs the tiny `/api/turn` function that hands out relay credentials, keeping the provider's key off the client.
+
+A misunderstanding worth recording: Metered's free plan is **500 MB per month**, renewed monthly, not a one-off trial allowance. That changes the question from "what replaces it before users run out" to "will we ever exceed it".
+
+### How much a game uses (measured)
+
+Simulated full bot games with every house rule on, counting the JSON of the initial sync and every action message, plus roughly 89 bytes of WebRTC/TURN framing per message:
+
+| Game | Messages | Per guest |
+| --- | --- | --- |
+| 2 players | 330–530 | 60–100 KB |
+| 4 players | 1,200–1,750 | 230–330 KB |
+| 6 players | 2,700–3,950 | 0.5–0.75 MB |
+
+Add connection keep-alives (ICE consent checks every few seconds, about 0.15 MB an hour) and count both directions through the relay: about **2 MB per relayed guest per game at worst**. So 500 MB a month is at least ~250 worst-case relayed guest-games, and in practice more, because most guests won't need the relay. Check the provider's dashboard before solving a problem you don't have.
+
+### If you outgrow it, in order of preference
+
+1. **Cloudflare's TURN service.** A much larger free relay allowance (check current pricing). One key can serve both games. `api/turn.ts` already parses Cloudflare's response shape (`{ iceServers }`); the only change is requesting credentials the way Cloudflare's API expects (a POST with a bearer token and a key id, both as server-side environment variables). Nothing in the game changes.
+2. **A WebSocket relay on Cloudflare Workers + Durable Objects.** One Durable Object per game room that forwards messages between host and guests; the host stays authoritative, the server stays dumb (about 100 lines). It removes NAT problems entirely (no TURN at all) and replaces the PeerJS signalling dependency too. Because the session code only talks to the `Network` / `Channel` interfaces (`src/net/transport.ts`), it is one new adapter in each game; the game logic and the host and guest sessions don't change. A few hundred games a day should fit the free plan (confirm current limits; with the WebSocket hibernation API incoming messages are billed at a fraction of a request each). Cost: one more thing to deploy.
+
+### What doesn't fit
+
+- **Vercel functions:** serverless, with no long-lived connections, so they can't relay messages or run TURN.
+- **Google Cloud's always-free VM (e2-micro):** fine compute, but only about 1 GB of outbound traffic a month, less than Metered's free relay.
+- **An always-free VM with a big bandwidth allowance (Oracle Cloud) running coturn:** it works, but you become the operator of a public relay: security updates, TLS certificates, abuse, uptime. The opposite of low-maintenance freeware.
+
+### Rule of thumb
+
+Measure before migrating. A turn-based game sends a few hundred bytes per move; at hobby scale, free tiers measured in hundreds of megabytes a month go a long way.
+

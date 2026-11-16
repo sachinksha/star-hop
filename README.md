@@ -76,6 +76,8 @@ How it works:
 - **Host controls.** Only the host can pause, start a new game with the same people, or end the online game. Undo is off online, and online games never pause by themselves.
 - **Limits.** If the host closes their tab, the game ends. The host could in principle cheat, so play with people you know.
 
+**Running it for free.** The only paid-looking piece is the TURN relay, and it is only used by players whose networks can't connect directly (typically phones on mobile data). Everyone else plays browser to browser. A full game sends each guest about 60–100 KB (2 players) to 0.5–0.75 MB (6 players), so even a free relay plan of 500 MB **per month** (it resets monthly; it is not a lifetime trial) covers a few hundred fully relayed guest-games a month. Set the provider in `/api/turn` with environment variables (see [api/turn.ts](api/turn.ts)); without one, play still works on friendly networks. If you outgrow the free allowance, see "Hosting online play for free" in [LEARNINGS.md](LEARNINGS.md#7-hosting-online-play-for-free).
+
 ## The board
 
 Six arms around a ring of stars, with one hole in the middle:
