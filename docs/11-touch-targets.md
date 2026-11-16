@@ -98,6 +98,24 @@ Design details that matter:
 
 The round board became a rounded rectangle. With your arm pointing down, the arms reach about 10.3 units up and down but only 9.95 sideways, so a circle of radius 10.65 wasted width. On a portrait phone, width is what limits the board, so trimming it gives about 5% more pixels per unit (16.7 to 17.5 on a Pixel 5). Marbles went from 10.7px to 13.3px across.
 
+## Keeping the board still
+
+On a phone the turn card (die, prompt, buttons) sits right above the board, so anything that changes the card's height pushes the board down or pulls it up. Measured with Playwright through real turns on a Pixel 5, the board's top edge moved:
+
+| Turn | Before | After |
+| --- | --- | --- |
+| Banked sixes (6, 6, 3, then moves) | 131 px | 0 px |
+| A finished player rolling for a teammate | 58 px | 0 px |
+| An ordinary roll and move | 0 px | 0 px |
+
+Three things caused it, and the fixes are the standard ones for **layout shift** (Cumulative Layout Shift, CLS, is one of Google's Core Web Vitals):
+
+1. **Content that appears and disappears.** The banked dice row, the teammate buttons and a "can't move" hint each added a row. Now the card is a grid with a **reserved action row** (a fixed minimum height) that holds whichever of them the turn needs, and the hint borrows the prompt line instead of adding one. Reserve space for content you know will come, as you would give an image its width and height before it loads.
+2. **Text of varying length.** Prompts ranged from one line to four. On phones they are now short ("Using the 3: tap a glowing marble") and the prompt keeps room for two lines, so it never grows. The dice row already shows the dice, so the prompt doesn't need to list them.
+3. **Rows that wrap.** Three teammate buttons wrapped onto two rows. On phones they share one row (names cut with an ellipsis if they must be, with the full name in the accessible label), and suggestion counts appear as a corner badge rather than a second line. On wider screens the turn card is in its own column, the board can't move, and the buttons are free to stack at full width.
+
+The cost is honest: the board starts about 35 px lower on a phone, because the action row is always there. A board that never moves is worth more than 35 px, but it is a trade-off worth naming. And measure it: the script that read the board's position before and after each step is what turned "it feels janky" into numbers, and then into a regression check.
+
 ## How you would know it worked
 
 In a real product you would measure before declaring victory:

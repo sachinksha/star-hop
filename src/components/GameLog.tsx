@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { IS_TOUCH } from '../hooks/useShortcuts'
+import { SHEET_QUERY } from './Sheet'
 import { useGameStore } from '../store/gameStore'
 
 /** Collapsible game log, newest first, derived from events in the store. */
@@ -46,7 +48,10 @@ export function GameLog() {
 export function KeyboardHelp() {
   const bankedDice = useGameStore((s) => s.game?.rules?.rollSixesFirst ?? false)
   const undo = useGameStore((s) => s.settings.undo)
-  if (IS_TOUCH) return null
+  const teams = useGameStore((s) => s.game?.players.some((p) => p.team !== null) ?? false)
+  // Phones (touch, or a narrow window) don't get keyboard help: no room, and rarely a keyboard.
+  const phoneSized = useMediaQuery(SHEET_QUERY)
+  if (IS_TOUCH || phoneSized) return null
   return (
     <section className="side-card">
       <h2>Keyboard</h2>
@@ -56,6 +61,11 @@ export function KeyboardHelp() {
         <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Then a numbered hole</dd>
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Step through marbles or holes (any number), <kbd>Enter</kbd> to choose</dd>
         <dt><kbd>Esc</kbd></dt><dd>Back to picking a marble</dd>
+        {teams && (
+          <>
+            <dt><kbd>1</kbd> <kbd>2</kbd>… <kbd>0</kbd></dt><dd>All home: roll for teammate 1, 2… or pass (online: suggest)</dd>
+          </>
+        )}
         {bankedDice && (
           <>
             <dt><kbd>D</kbd></dt><dd>Switch die (when several are banked)</dd>

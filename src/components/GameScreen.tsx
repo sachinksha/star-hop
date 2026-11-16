@@ -25,6 +25,7 @@ import { SettingsSheet } from './SettingsSheet'
 import { SHEET_QUERY } from './Sheet'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { TeamTurn } from './TeamTurn'
+import { suggestingTeammate, suggestionOptions } from '../net/nudges'
 import { ToolButton } from './Toolbar'
 import { WinOverlay } from './WinOverlay'
 
@@ -88,6 +89,8 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   /** "Rolled 4", or with several dice banked (R22) "Dice 6, 6, 3: using the 3". */
   const rolledText = pool.length > 1 ? `Dice ${pool.join(', ')}: using the ${selectedDie}.` : `Rolled ${selectedDie ?? game.dice}.`
   const banking = game.phase === 'roll' && pool.length > 0
+  /** The same turn still has a banked die to use after a move: keep showing it (R22). */
+  const continuing = game.phase === 'move' && game.rules?.rollSixesFirst === true && actions.at(-1)?.type === 'move'
   const lastRoll = [...actions].reverse().find((a) => a.type === 'roll')
   const shownHint = hint && hint.seq === game.actionSeq ? hint.text : null
 
@@ -169,8 +172,31 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
     pieces[next]!.focus()
   }
 
-  /** Digit keys: a destination while badges are up, otherwise a marble. */
+  // Team play keys: the roller picks a teammate with 1, 2... and passes with 0; an online
+  // teammate on this device sends the same choices as suggestions.
+  const suggester = suggestingTeammate(game, isMine, online)
+  const teamKey = (n: number): boolean | null => {
+    if (!helperTurn || busy || paused) return null
+    if (helperChoices.length > 0) {
+      if (n === 0) pass()
+      else if (helperChoices[n - 1]) rollFor(helperChoices[n - 1]!.color)
+      else return false
+      return true
+    }
+    if (suggester) {
+      const options = suggestionOptions(game, suggester)
+      const option = n === 0 ? options.at(-1) : n <= options.length - 1 ? options[n - 1] : undefined
+      if (!option) return false
+      sendNudge(suggester.color, option.nudge)
+      return true
+    }
+    return null
+  }
+
+  /** Digit keys: a teammate on a helper turn; a destination while badges are up; otherwise a marble. */
   const digit = (n: number) => () => {
+    const team = teamKey(n)
+    if (team !== null) return team
     if (selected !== null) {
       if (n > destinations.length) return false
       chooseDestination(n - 1)
@@ -185,7 +211,10 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
     {
       ' ': () => {
         if (canRoll) roll()
+        // A finished player with one teammate: Space rolls for them, like any other roll.
+        else if (helperTurn && helperChoices.length === 1 && !busy && !paused) rollFor(helperChoices[0]!.color)
       },
+      '0': () => teamKey(0) ?? false,
       ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [String(n), digit(n)])),
       Escape: () => {
         if (selected === null) return false
@@ -220,10 +249,14 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
 
   const lastEvents = game.events
   const oops = lastEvents.find((e) => e.type === 'noMoves')
+  // Phones (touch, or a narrow window) get short prompts: the dice row already shows the
+  // dice, and a prompt that never grows past two lines keeps the board from jumping.
+  const compact = IS_TOUCH || phoneSized
+  const helping = mover.color !== current.color
   let prompt: string
   if (gameOver) prompt = 'Game over'
   else if (paused && isGuest) prompt = 'The host paused the game.'
-  else if (paused) prompt = IS_TOUCH ? 'Paused. Tap Resume to keep playing.' : 'Paused. Press P or Resume to keep playing.'
+  else if (paused) prompt = compact ? 'Paused. Tap Resume to play on.' : 'Paused. Press P or Resume to keep playing.'
   else if (oops?.type === 'noMoves' && (busy || !humanTurn || game.phase === 'roll')) {
     const who = game.players.find((p) => p.color === oops.color)!
     const roller = who.name === 'You' ? 'You' : who.name
@@ -233,25 +266,25 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
   } else if (busy) prompt = 'Moving...'
   else if (celebration) prompt = celebration.name === 'You' ? 'You got all your marbles home!' : `${celebration.name} got all their marbles home!`
   else if (helperTurn && helperChoices.length > 0)
-    prompt = `${current.name === 'You' ? 'Your' : `${current.name}, your`} marbles are all home. Roll for a teammate, or pass.`
-  else if (helperTurn) prompt = `${current.name} has finished and is choosing who to roll for...`
+    prompt = compact
+      ? 'All home! Roll for a teammate, or pass.'
+      : `${current.name === 'You' ? 'Your' : `${current.name}, your`} marbles are all home. Roll for a teammate (${helperChoices.length > 1 ? `1–${helperChoices.length}` : '1 or Space'}), or pass (0).`
+  else if (helperTurn) prompt = `${current.name} is choosing who to roll for...`
   else if (!humanTurn) prompt = `${current.name} is playing...`
-  else if (banking) prompt = `${turnOf(current.name)} A 6! Roll again before moving${autoRoll ? '...' : '.'}`
+  else if (banking) prompt = `${turnOf(current.name)} A 6! Roll again${autoRoll ? '...' : '.'}`
   else if (game.phase === 'roll' && autoRoll) prompt = `${turnOf(current.name)} Rolling...`
-  else if (game.phase === 'roll') prompt = `${turnOf(current.name)} ${IS_TOUCH ? 'Tap the die to roll.' : 'Press Space or tap the die to roll.'}`
-  else if (mover.color !== current.color && game.phase === 'move' && selected === null)
-    prompt = `${rolledText} For ${mover.name}: ${IS_TOUCH ? 'tap' : 'pick'} one of ${mover.name}'s glowing marbles.`
-  else if (selected !== null && showPad)
-    prompt = `${rolledText} Where does marble ${selected + 1} go? Tap a number on the board or below.`
+  else if (game.phase === 'roll')
+    prompt = `${turnOf(current.name)} ${compact ? 'Tap the die.' : 'Press Space or tap the die to roll.'}${helping ? ` (For ${mover.name}.)` : ''}`
+  else if (compact) {
+    const lead = pool.length > 1 ? `Using the ${selectedDie}` : `Rolled ${selectedDie ?? game.dice}`
+    if (selected !== null) prompt = `${lead}: where does marble ${selected + 1} go?`
+    else if (helping) prompt = `${lead} for ${mover.name}: tap a marble.`
+    else prompt = `${lead}: tap a glowing marble.`
+  } else if (helping && selected === null)
+    prompt = `${rolledText} For ${mover.name}: pick one of ${mover.name}'s glowing marbles.`
   else if (selected !== null)
-    prompt = IS_TOUCH
-      ? `${rolledText} Tap a numbered hole for marble ${selected + 1}, or tap the marble again to go back.`
-      : `${rolledText} Pick where marble ${selected + 1} goes: press ${destinations.length > 9 ? '1–9' : `1–${destinations.length}`} or use ← → and Enter, or Esc to go back.`
-  else if (showPad) prompt = `${rolledText} Tap a glowing marble, or its number below.${usableDice.size > 1 ? ' Tap a die to switch.' : ''}`
-  else
-    prompt = IS_TOUCH
-      ? `${rolledText} Tap a glowing marble.${usableDice.size > 1 ? ' Tap a die to switch.' : ''}`
-      : `${rolledText} Pick a marble: press 1–4, use ← → and Enter, or click a glowing one.${usableDice.size > 1 ? ' D switches die.' : ''}`
+    prompt = `${rolledText} Pick where marble ${selected + 1} goes: press ${destinations.length > 9 ? '1–9' : `1–${destinations.length}`} or use ← → and Enter, or Esc to go back.`
+  else prompt = `${rolledText} Pick a marble: press 1–4, use ← → and Enter, or click a glowing one.${usableDice.size > 1 ? ' D switches die.' : ''}`
 
   return (
     <section className="game" aria-label="Star Hop game">
@@ -371,34 +404,36 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
               onRoll={roll}
               label={`${current.name}'s die`}
             />
-            <DicePool
-              pool={pool}
-              banking={banking}
-              selectedDie={selectedDie}
-              usable={(d) => usableDice.has(d)}
-              interactive={canPick}
-              keyHint={!IS_TOUCH}
-              onSelect={selectDie}
-            />
-            <p className="prompt" aria-live="polite">
-              {prompt}
+            {/* A short hint replaces the prompt for a moment rather than adding a row. */}
+            <p className={`prompt${shownHint ? ' prompt-hint' : ''}`} aria-live="polite">
+              {shownHint ?? prompt}
             </p>
-            <TeamTurn
-              game={game}
-              choices={busy ? [] : helperChoices}
-              isMine={isMine}
-              online={online}
-              nudges={nudges}
-              disabled={busy || paused}
-              onRollFor={rollFor}
-              onPass={pass}
-              onNudge={sendNudge}
-            />
-            {shownHint && (
-              <p className="hint" role="status">
-                {shownHint}
-              </p>
-            )}
+            {/* One reserved row for whatever the turn needs: banked dice, a die to choose, or
+                a teammate to roll for. Its height never changes, so the board never jumps. */}
+            <div className="turn-actions">
+              <DicePool
+                pool={pool}
+                banking={banking}
+                selectedDie={selectedDie}
+                usable={(d) => usableDice.has(d)}
+                interactive={canPick}
+                keyHint={!compact}
+                continuing={continuing}
+                onSelect={selectDie}
+              />
+              <TeamTurn
+                game={game}
+                choices={busy ? [] : helperChoices}
+                isMine={isMine}
+                online={online}
+                nudges={nudges}
+                disabled={busy || paused}
+                compact={compact}
+                onRollFor={rollFor}
+                onPass={pass}
+                onNudge={sendNudge}
+              />
+            </div>
             {canPick && selected === null && pickable.length > 0 && (
               <p className="sr-only">
                 Marbles you can move: {pickable.map((id) => `${id + 1} (${movesFor(id).length} ${movesFor(id).length === 1 ? 'place' : 'places'})`).join(', ')}

@@ -84,7 +84,9 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: ' ' })
     advance(1000)
     fireEvent.keyDown(window, { key: '2' })
-    expect(screen.getByRole('status')).toHaveTextContent("Marble 2 can't move with a 3.")
+    // The hint takes the prompt's place for a moment (no extra row that would move the board).
+    expect(document.querySelector('.prompt')).toHaveTextContent("Marble 2 can't move with a 3.")
+    expect(document.querySelector('.prompt')).toHaveClass('prompt-hint')
   })
 
   it('shows an oops when a roll has no legal move, and reads the log line out', () => {
@@ -248,3 +250,60 @@ describe('App', () => {
 
 /** Long enough for a roll to tumble and settle. */
 const TIMINGish = 900
+
+describe('team turns from the keyboard', () => {
+  /** Six seats, teams of three: red (finished) with yellow and blue, against the bots. Red to roll. */
+  function helperTurn() {
+    const colors: Color[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple']
+    const teamOf = (i: number) => i % 2
+    render(<App />)
+    act(() => store().start(colors.map((color, i) => ({ color, kind: i % 2 === 0 ? ('human' as const) : ('bot' as const), team: teamOf(i) })), () => 0))
+    act(() => {
+      const g = store().game!
+      const players = g.players.map((p) => {
+        if (p.color === 'red') return { ...p, finishRank: 1, marbles: p.marbles.map((m) => ({ ...m, spot: home(m.id) })) }
+        if (p.color === 'yellow' || p.color === 'blue') return { ...p, marbles: p.marbles.map((m) => (m.id === 0 ? { ...m, spot: loop(p.color === 'yellow' ? 35 : 63) } : m)) }
+        return p
+      })
+      const custom = { ...g, players, currentIndex: 0, winners: ['red' as Color] }
+      useGameStore.setState({ initial: custom, game: custom, actions: [] })
+    })
+  }
+
+  it('offers each teammate by number and Pass on 0, and the keys do the same', () => {
+    helperTurn()
+    const group = screen.getByRole('group', { name: 'Choose who this roll is for' })
+    expect(within(group).getAllByRole('button').map((b) => b.getAttribute('aria-keyshortcuts'))).toEqual(['1', '2', '0'])
+    fireEvent.keyDown(window, { key: '0' })
+    advance(TIMINGish)
+    expect(store().actions).toEqual([{ type: 'pass', actor: 'human' }])
+  })
+
+  it('rolls for teammate 2 with the 2 key, and the choice holds (no Pass mid-turn)', () => {
+    helperTurn()
+    rollNext(6)
+    fireEvent.keyDown(window, { key: '2' })
+    advance(TIMINGish)
+    expect(store().actions[0]).toEqual({ type: 'roll', value: 6, actor: 'human', for: 'blue' })
+    // After the 6 the turn is still for blue: no teammate choice, no Pass.
+    expect(screen.queryByRole('group', { name: 'Choose who this roll is for' })).toBeNull()
+  })
+})
+
+describe('phones', () => {
+  it('hides the keyboard help on a phone-sized screen', () => {
+    const real = window.matchMedia
+    window.matchMedia = ((query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+    try {
+      startTwoPlayer([])
+      expect(screen.queryByRole('heading', { name: 'Keyboard' })).toBeNull()
+    } finally {
+      window.matchMedia = real
+    }
+  })
+
+  it('shows the keyboard help on a wide screen', () => {
+    startTwoPlayer([])
+    expect(screen.getByRole('heading', { name: 'Keyboard' })).toBeInTheDocument()
+  })
+})

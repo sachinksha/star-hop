@@ -101,11 +101,15 @@ describe('TeamTurn', () => {
         onNudge={noop}
       />,
     )
-    const yellow = screen.getByRole('button', { name: /Roll for Player 3/ })
-    expect(yellow).toHaveTextContent('Player 5 asked')
+    const yellow = screen.getByRole('button', { name: 'Roll for Player 3, Player 5 asked' })
+    // The vote shows as a corner badge, so the button keeps one line.
+    expect(yellow.querySelector('.nudge-badge')).toHaveTextContent('1')
+    expect(yellow).toHaveAttribute('aria-keyshortcuts', '1')
     fireEvent.click(yellow)
     expect(onRollFor).toHaveBeenCalledWith('yellow')
-    fireEvent.click(screen.getByRole('button', { name: 'Pass' }))
+    const pass = screen.getByRole('button', { name: 'Pass' })
+    expect(pass).toHaveAttribute('aria-keyshortcuts', '0')
+    fireEvent.click(pass)
     expect(onPass).toHaveBeenCalled()
   })
 
@@ -126,8 +130,8 @@ describe('TeamTurn', () => {
       />,
     )
     expect(screen.getByRole('group', { name: 'Suggest to Player 1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pass this one' })).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Roll for me' }))
+    expect(screen.getByRole('button', { name: 'Suggest: Pass this one' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest: Roll for me' }))
     expect(onNudge).toHaveBeenCalledWith('yellow', { kind: 'rollFor', color: 'yellow' })
   })
 

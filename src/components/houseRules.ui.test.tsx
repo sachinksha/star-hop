@@ -71,3 +71,12 @@ describe('house rules on setup and in the rules', () => {
     expect(items.map((li) => li.querySelector('.rules-tag')!.textContent)).toEqual(['Off', 'On', 'Off'])
   })
 })
+
+describe('DicePool keeps its place through a banked turn', () => {
+  it('still shows the last banked die after the others are used', () => {
+    render(<DicePool pool={[3]} banking={false} continuing selectedDie={3} usable={() => true} interactive onSelect={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Use the 3' })).toBeInTheDocument()
+    // No keyboard hint for a single die: there is nothing to switch to.
+    expect(screen.queryByText('switches')).toBeNull()
+  })
+})

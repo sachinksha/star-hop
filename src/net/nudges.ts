@@ -8,7 +8,7 @@
  * and the host shares them only with the roller's team.
  */
 import { helperTargets, isHelperTurn, isTeammate } from '../game/teams'
-import type { Color, GameState } from '../game/types'
+import type { Color, GameState, Player } from '../game/types'
 import type { Nudge, TeamNudge } from './protocol'
 
 /**
@@ -35,4 +35,27 @@ export function liveNudges(game: GameState, nudges: TeamNudge[]): TeamNudge[] {
 export function teamColors(game: GameState): Color[] {
   const roller = game.players[game.currentIndex]!
   return game.players.filter((p) => p === roller || isTeammate(p, roller)).map((p) => p.color)
+}
+
+/**
+ * The options a teammate on this device can suggest to the roller, in key
+ * order: each unfinished teammate (1, 2, ...), then pass (0). Shared with the
+ * keyboard shortcuts so keys and buttons always agree.
+ */
+export function suggestionOptions(game: GameState, me: Player): { nudge: Nudge; label: string; short: string }[] {
+  return [
+    ...helperTargets(game).map((p) => ({
+      nudge: { kind: 'rollFor', color: p.color } as Nudge,
+      label: p.color === me.color ? 'Roll for me' : `Roll for ${p.name}`,
+      short: p.color === me.color ? 'Me' : p.name,
+    })),
+    { nudge: { kind: 'pass' } as Nudge, label: 'Pass this one', short: 'Pass' },
+  ]
+}
+
+/** The teammate on this device who could suggest to the roller now, if any (online only). */
+export function suggestingTeammate(game: GameState, isMine: (color: Color) => boolean, online: boolean): Player | null {
+  if (!online || !isHelperTurn(game)) return null
+  const roller = game.players[game.currentIndex]!
+  return game.players.find((p) => isMine(p.color) && isTeammate(p, roller)) ?? null
 }

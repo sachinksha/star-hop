@@ -238,9 +238,14 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .panel-home { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.9rem; }
 
 /* ---------- Die and prompt ---------- */
-.dice-card { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 0.9rem; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-top: 5px solid var(--arm); box-shadow: var(--shadow); text-align: center; }
-.prompt { margin: 0; min-height: 2.8em; font-weight: 500; }
-.hint { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+/* The turn area: die, prompt, and one reserved row of actions (banked dice, dice to
+   choose, teammate buttons). Each part has a fixed minimum size, so nothing the turn
+   shows or hides changes the card's height, and the board below never jumps. */
+.dice-card { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'die' 'prompt' 'actions'; justify-items: center; gap: 0.6rem; padding: 0.9rem; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-top: 5px solid var(--arm); box-shadow: var(--shadow); text-align: center; }
+.dice-card .die { grid-area: die; }
+.prompt { grid-area: prompt; margin: 0; min-height: 2.8em; font-weight: 500; }
+.prompt-hint { color: var(--ink-soft); font-style: italic; }
+.turn-actions { grid-area: actions; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; }
 .die { display: grid; grid-template-columns: repeat(3, 1fr); align-content: space-between; gap: 4px; width: 68px; height: 68px; padding: 9px; border-radius: 14px; background: #fff; border: 2px solid var(--arm); box-shadow: var(--shadow); }
 .die-clickable { animation: nudge 1.4s ease-in-out infinite; }
 .die:disabled { opacity: 1; cursor: default; }
@@ -258,10 +263,14 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
   .table { order: 2; }
   .panels { order: 3; }
   .side-card { order: 4; }
-  .dice-card { flex-direction: row; flex-wrap: wrap; text-align: left; padding: 0.6rem; }
-  .dice-card .prompt { flex: 1; min-width: 0; }
-  .prompt { min-height: 0; }
+  /* Phone: die on the left; on the right a two-line prompt over the reserved action row. */
+  .dice-card { grid-template-columns: 56px minmax(0, 1fr); grid-template-areas: 'die prompt' 'die actions'; justify-items: start; align-items: center; column-gap: 0.7rem; row-gap: 0.3rem; text-align: left; padding: 0.6rem; }
+  .dice-card .die { align-self: start; }
+  .prompt { min-height: 2.6em; font-size: 0.92rem; line-height: 1.3; align-self: end; }
+  .turn-actions { justify-content: flex-start; min-height: 48px; }
   .die { width: 56px; height: 56px; padding: 7px; flex: none; }
+  /* Keyboard hints cost width the prompt and buttons need on a phone. */
+  .dice-pool kbd, .team-key { display: none; }
 }
 
 /* ---------- Board ---------- */
@@ -522,14 +531,25 @@ button.dice-chip { min-width: 44px; min-height: 44px; }
 /* Teams differ by letter and by shape, never by colour alone (seat colours already use the hues). */
 .team-1 { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
 .team-2 { background: repeating-linear-gradient(135deg, var(--ink) 0 3px, var(--ink-soft) 3px 6px); }
-.team-turn { width: 100%; display: grid; gap: 0.45rem; }
-.team-turn-note { margin: 0; font-weight: 600; }
-.team-choices { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
-.team-choice, .team-pass { display: inline-flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem; min-height: 48px; padding: 0.4rem 0.8rem; border-radius: 12px; font-weight: 600; }
+.team-turn { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem; width: 100%; min-width: 0; }
+.team-turn-note { font-weight: 600; font-size: 0.9rem; flex: none; }
+/* One row: buttons share the width and long names are cut with an ellipsis. */
+.team-choice, .team-pass, .team-suggest { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 44px; min-width: 0; padding: 0.35rem 0.7rem; border-radius: 12px; font-weight: 600; }
+.team-choice { flex: 1 1 100%; }
+.team-choice-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.team-pass { flex: none; }
+.team-suggest { flex: 0 1 auto; }
+.team-key { font-size: 0.75rem; }
+.nudge-badge { position: absolute; top: -7px; right: -7px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--star); color: #1f2430; font-size: 0.72rem; font-weight: 800; box-shadow: var(--shadow); }
+/* On a phone the board sits right below the turn card, so the team buttons stay in one
+   row (the card keeps its height); on wider screens they stack in the side column. */
+@media (max-width: 700px) {
+  .team-turn { flex-wrap: nowrap; justify-content: flex-start; }
+  .team-choice { flex: 1 1 0; max-width: 12rem; }
+  .team-choice, .team-pass, .team-suggest { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
+}
 .team-choice { border: 2px solid var(--arm); }
 .team-choice-nudged { box-shadow: 0 0 0 3px color-mix(in srgb, var(--star) 70%, transparent); }
-.nudge-tag { flex-basis: 100%; font-size: 0.75rem; font-weight: 500; color: var(--ink-soft); }
-.nudge-list { margin: 0; padding: 0; list-style: none; font-size: 0.85rem; color: var(--ink-soft); }
 .setup-hint-wide { flex-basis: 100%; margin: 0.3rem auto 0; max-width: 460px; }
 .standing-team { align-items: flex-start !important; }
 
