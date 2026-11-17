@@ -1,7 +1,7 @@
 import { PERSONA_LABEL } from '../game/bot'
 import { teamLabel } from '../game/teams'
 import type { Player } from '../game/types'
-import { COLOR_HEX, COLOR_NAME } from './colors'
+import { PLAYER_COLOR, COLOR_NAME } from './colors'
 
 interface PlayerPanelProps {
   player: Player
@@ -19,7 +19,7 @@ export function PlayerPanel({ player, active, playingFor = null }: PlayerPanelPr
   return (
     <li
       className={classes}
-      style={{ ['--arm' as string]: COLOR_HEX[player.color] }}
+      style={{ ['--arm' as string]: PLAYER_COLOR[player.color] }}
       aria-current={active ? 'true' : undefined}
       aria-label={`${player.name}, ${COLOR_NAME[player.color]}${player.team !== null ? `, ${teamLabel(player.team)}` : ''}${active ? ', playing now' : ''}`}
     >

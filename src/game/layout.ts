@@ -91,8 +91,12 @@ export function homePoint(color: Color, slot: number, bottom: number): Point {
   return armPoint(armOf(color), bottom, ARM_INNER + (4 - slot) * HOLE_GAP, 0)
 }
 
+/**
+ * Base holes in marble order, 1 to 4 reading left to right on the bottom arm
+ * (seen from the centre that is counter-clockwise, hence the negative offset).
+ */
 export function basePoint(color: Color, slot: number, bottom: number): Point {
-  return armPoint(armOf(color), bottom, BASE_ALONG, (slot - 1.5) * 0.95)
+  return armPoint(armOf(color), bottom, BASE_ALONG, (1.5 - slot) * 0.95)
 }
 
 export const CENTER_POINT: Point = { x: 0, y: 0 }
@@ -114,27 +118,26 @@ export function marblePoint(color: Color, marbleId: number, spot: Spot, bottom: 
   }
 }
 
+const fmtPoint = (p: Point) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`
+
 /**
- * Corners of the backdrop for one arm (a rounded strip behind its holes), as an
- * SVG polygon points string.
+ * Corners of the backdrop for one arm: a strip behind its holes, widening a
+ * little toward the base. The far end runs under the base pad, which caps it.
  */
-export function armOutline(arm: number, bottom: number): string {
-  // The arm ends where its base pad begins; the pad caps it.
+export function armCorners(arm: number, bottom: number): Point[] {
   const near = ARM_INNER - 0.65
-  const far = BASE_ALONG - 0.6
+  const far = BASE_ALONG
   const side = ARM_HALF + 0.62
   return [
     armPoint(arm, bottom, near, -side),
-    armPoint(arm, bottom, far, -side - 0.3),
-    armPoint(arm, bottom, far, side + 0.3),
+    armPoint(arm, bottom, far, -side - 0.35),
+    armPoint(arm, bottom, far, side + 0.35),
     armPoint(arm, bottom, near, side),
   ]
-    .map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`)
-    .join(' ')
 }
 
-/** Corners of the solid pad behind an arm's four base holes, as an SVG polygon points string. */
-export function baseOutline(arm: number, bottom: number): string {
+/** Corners of the solid pad behind an arm's four base holes. */
+export function baseCorners(arm: number, bottom: number): Point[] {
   const near = BASE_ALONG - 0.6
   const far = BASE_ALONG + 0.6
   const side = 2.05
@@ -144,8 +147,107 @@ export function baseOutline(arm: number, bottom: number): string {
     armPoint(arm, bottom, far, side),
     armPoint(arm, bottom, near, side),
   ]
-    .map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`)
-    .join(' ')
+}
+
+/**
+ * An SVG path through `points` with each corner rounded off: the path stops
+ * `radius` short of the corner and curves (a quadratic Bezier with the corner
+ * as its control point) to the same distance along the next edge. `radius`
+ * can be one number or one per corner (0 keeps that corner sharp).
+ */
+export function roundedPath(points: readonly Point[], radius: number | readonly number[]): string {
+  const n = points.length
+  const toward = (from: Point, to: Point, r: number): Point => {
+    const len = Math.hypot(to.x - from.x, to.y - from.y)
+    const k = Math.min(r / len, 0.5)
+    return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k }
+  }
+  let d = ''
+  points.forEach((p, i) => {
+    const r = typeof radius === 'number' ? radius : (radius[i] ?? 0)
+    const a = toward(p, points[(i + n - 1) % n]!, r)
+    const b = toward(p, points[(i + 1) % n]!, r)
+    d += `${i === 0 ? 'M' : 'L'}${fmtPoint(a)} Q${fmtPoint(p)} ${fmtPoint(b)} `
+  })
+  return `${d}Z`
+}
+
+/** An arm's backdrop as a path, its inner corners rounded. The outer ones hide under the base pad. */
+export function armOutline(arm: number, bottom: number): string {
+  return roundedPath(armCorners(arm, bottom), [0.55, 0, 0, 0.55])
+}
+
+/** An arm's base pad as a path, with rounded corners. */
+export function baseOutline(arm: number, bottom: number): string {
+  return roundedPath(baseCorners(arm, bottom), 0.5)
+}
+
+/**
+ * A chevron (a bold "›") centred on `p`, pointing at `angle` (radians,
+ * SVG convention: clockwise from +x), as polygon points. `halfWidth` is half
+ * its span across the direction, `depth` how far the point sticks out, and
+ * `thickness` the stroke weight, measured along the direction.
+ */
+export function chevron(p: Point, angle: number, halfWidth: number, depth: number, thickness: number): string {
+  const c = Math.cos(angle)
+  const s = Math.sin(angle)
+  const back = -(depth + thickness) / 2
+  const local: [number, number][] = [
+    [back, -halfWidth],
+    [back + thickness, -halfWidth],
+    [back + thickness + depth, 0],
+    [back + thickness, halfWidth],
+    [back, halfWidth],
+    [back + depth, 0],
+  ]
+  return local.map(([u, v]) => fmtPoint({ x: p.x + u * c - v * s, y: p.y + u * s + v * c })).join(' ')
+}
+
+/**
+ * A filled arrow (shaft and triangular head) centred on `p`, pointing at
+ * `angle`, `length` long overall, as polygon points.
+ */
+export function arrow(p: Point, angle: number, length: number, shaft: number, head: number): string {
+  const c = Math.cos(angle)
+  const s = Math.sin(angle)
+  const back = -length / 2
+  const neck = length / 2 - head * 0.75
+  const local: [number, number][] = [
+    [back, -shaft / 2],
+    [neck, -shaft / 2],
+    [neck, -head / 2],
+    [length / 2, 0],
+    [neck, head / 2],
+    [neck, shaft / 2],
+    [back, shaft / 2],
+  ]
+  return local.map(([u, v]) => fmtPoint({ x: p.x + u * c - v * s, y: p.y + u * s + v * c })).join(' ')
+}
+
+/** Midpoint of two points and the direction from the first to the second. */
+export function stepBetween(a: Point, b: Point): { p: Point; angle: number } {
+  return { p: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, angle: Math.atan2(b.y - a.y, b.x - a.x) }
+}
+
+/** Width of the thin band joining the stars (it runs along the star circle). */
+export const STAR_BAND_WIDTH = 0.3
+
+/**
+ * Where the star band's chevrons sit: on the stretch between two stars, each
+ * pointing clockwise along the band, like the warning chevrons on a bend in
+ * the road (star hops go clockwise). Each stretch crosses the inner end of an
+ * arm, where the last home hole touches the circle, so the chevrons come in
+ * two pairs either side of it, clear of the stars and every hole.
+ */
+export function starRingChevrons(bottom: number): { p: Point; angle: number }[] {
+  const out: { p: Point; angle: number }[] = []
+  for (let arm = 0; arm < ARM_COUNT; arm++) {
+    for (const off of [-12, -6, 6, 12]) {
+      const t = armAngle(arm, bottom) + off * DEG
+      out.push({ p: { x: Math.cos(t) * STAR_RADIUS, y: Math.sin(t) * STAR_RADIUS }, angle: t + Math.PI / 2 })
+    }
+  }
+  return out
 }
 
 /** Five-point star outline centred on `p`. */

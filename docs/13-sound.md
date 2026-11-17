@@ -21,12 +21,14 @@ The second column fits a game whose sounds last a few hundred milliseconds and w
 Web Audio is a graph of nodes. Sources (oscillators, buffers) flow through processors (gain, filters, compressors) to the speakers:
 
 ```
-oscillator / buffer ──► envelope (gain) ──► theme level ──► master volume ──► limiter ──► speakers
+oscillator / buffer ──► envelope (gain) ──► theme level ──► warmth (low-pass) ──┬──────────────► master volume ──► limiter ──► speakers
+                                                                               └─► space (send) ──► room reverb ──┘
 ```
 
 - **The context is created lazily**, on the first sound. Browsers block audio until the user has interacted with the page (the autoplay policy), and a context created earlier starts `suspended`. `getContext()` calls `resume()` when needed.
 - **Everything is scheduled on the audio clock** (`ac.currentTime`), not with `setTimeout`. A tihai's twelve strokes are scheduled at exact times in one go, and the audio thread plays them sample-accurately even if the main thread is busy animating.
 - **The limiter** (a `DynamicsCompressorNode` with a high ratio) sits at the end. A fast walk or a win fanfare stacks many voices; without it they would add up past full scale and clip.
+- **Warmth and space** are per-theme tone controls, built by `themeInput()` in sfx.ts. See *Sweet, not sharp* below.
 - **Envelopes** shape each note's loudness: a quick rise, then an exponential decay. One gotcha: `exponentialRampToValueAtTime(0, ...)` **throws**, because an exponential curve can never reach zero. Ramp to a tiny value (`SILENT = 0.0001`) instead. The test's fake context rejects zero ramps exactly as browsers do.
 
 ## Five instruments, four techniques
@@ -87,6 +89,27 @@ Switching themes shouldn't feel like turning the volume knob. That needs measuri
 
 A 14 dB spread became about 2.5 dB, with one `level` number per theme plus a few gains inside the Santoor theme. RMS is a rough stand-in for perceived loudness; a production pipeline would use LUFS (ITU-R BS.1770), which weights frequencies the way ears do.
 
+## Sweet, not sharp
+
+Equal loudness was not enough. Players found every theme except the tabla sharp, and turned the volume right down to bear them. Measuring the share of each sound's energy above 2.5 kHz (two cascaded high-pass filters, then energy over total energy) showed why:
+
+| Theme | Energy above 2.5 kHz, before | After |
+| --- | --- | --- |
+| Classic | 9% (the dice rattle alone: 51%) | 0% |
+| Tabla | 0% | 0% (unchanged) |
+| Bansuri | 1% | 0% |
+| Sitar | 21% | 8% |
+| Santoor | 28% | 11% |
+
+Human hearing is most sensitive between about 2 and 5 kHz (the dip in the equal-loudness contours, ISO 226), so energy there sounds harsh and loud even when the RMS meter says the theme is balanced. The tabla is mostly low, round partials, which is why it was the comfortable one. The fixes, cheapest first:
+
+- **A gentle low-pass per theme** (`warmth`, 3 to 3.6 kHz, Q 0.5 so there is no resonant bump at the cutoff).
+- **Softer sources.** Classic now uses only sine and triangle waves (square and sawtooth waves are mostly buzzy overtones), and its dice rattle is band-passed instead of high-passed. The bansuri's breath noise is a third of what it was, and its key dropped from E to A, a longer and mellower flute.
+- **A softer strike for strings.** Karplus–Strong starts from a burst of white noise: every frequency at once, like a hard plectrum. `PluckSpec.soft` smooths that burst a few times before the string starts (and removes the offset smoothing leaves behind), which is what a finger or a padded santoor hammer does. The sitar's jawari buzz went from 0.6 to 0.28, enough to shimmer without rasping; the santoor moved down a fourth to A4.
+- **A little room** (`space`). A shared convolver whose impulse response is stereo noise fading over about a second, darkening as it fades, the way a real room soaks up high frequencies first. A small send makes plucks and chimes bloom instead of stopping dead, which reads as "sweet".
+
+After the changes the levels were rebalanced against the tabla, this time measuring the loudest 250 ms of each sound (short sounds are judged by their loudest moment). All five themes average within about 1 dB of each other.
+
 ## Testing code whose output is sound
 
 jsdom has no Web Audio. Three layers of tests cover it anyway:
@@ -114,7 +137,8 @@ Everything is in [themes.ts](../src/audio/themes.ts):
 
 - the tabla's pitch is `DAYAN` (277 Hz, C♯4) and `BAYAN`; each stroke's partials are its timbre;
 - the flute's key is `FLUTE_SA`, and its phrases are lists of scale steps (`fn(5)` is Sa an octave up);
-- the sitar's string is `SITAR` (`decay`, `brightness`, `buzz`); more buzz means more jawari;
+- the sitar's string is `SITAR` (`decay`, `brightness`, `buzz`, `soft`); more buzz means more jawari, more `soft` a rounder strike;
+- each theme's `warmth` (low-pass cutoff) and `space` (reverb send) set how mellow and how roomy it sounds;
 - each theme's `level` balances its loudness against the others.
 
 Change a number, open Settings, and press the theme's play button or the "Try each sound" chips.

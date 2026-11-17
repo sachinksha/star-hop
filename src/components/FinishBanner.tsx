@@ -1,5 +1,5 @@
 import type { Color } from '../game/types'
-import { COLOR_HEX } from './colors'
+import { PLAYER_COLOR } from './colors'
 import { unit } from './random'
 
 const RANK_WORD = ['', '1st', '2nd', '3rd', '4th', '5th', '6th']
@@ -16,7 +16,7 @@ const BURST = Array.from({ length: 28 }, (_, i) => ({
 export function FinishBanner({ name, color, rank }: { name: string; color: Color; rank: number }) {
   const who = name === 'You' ? 'You finished' : `${name} finished`
   return (
-    <div className="finish-banner" style={{ ['--arm' as string]: COLOR_HEX[color] }} role="status">
+    <div className="finish-banner" style={{ ['--arm' as string]: PLAYER_COLOR[color] }} role="status">
       <div className="confetti" aria-hidden="true">
         {BURST.map((p) => (
           <span

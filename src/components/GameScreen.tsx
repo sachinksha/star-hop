@@ -9,7 +9,7 @@ import type { StarHopController } from '../hooks/useStarHopGame'
 import { useGameStore } from '../store/gameStore'
 import { useOnlineStore } from '../store/onlineStore'
 import { Board } from './Board'
-import { COLOR_HEX } from './colors'
+import { PLAYER_COLOR } from './colors'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Die } from './Dice'
 import { DicePool } from './DicePool'
@@ -322,7 +322,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         </div>
       )}
       {notice && (
-        <div key={notice.id} className="notice" style={{ ['--arm' as string]: COLOR_HEX[notice.color] }} role="status">
+        <div key={notice.id} className="notice" style={{ ['--arm' as string]: PLAYER_COLOR[notice.color] }} role="status">
           <Icon name="robot" />
           <span>{notice.text}</span>
         </div>
@@ -398,7 +398,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         </div>
 
         <aside className="side">
-          <div className="dice-card" style={{ ['--arm' as string]: COLOR_HEX[current.color] }}>
+          <div className="dice-card" style={{ ['--arm' as string]: PLAYER_COLOR[current.color] }}>
             <Die
               value={game.dice ?? (lastRoll?.type === 'roll' ? lastRoll.value : null)}
               rolling={rolling}

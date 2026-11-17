@@ -65,6 +65,15 @@ Splitting them makes the expensive, rarely changing part a separate component, s
 
 The same layering idea scales up to Canvas: draw the static background to an offscreen canvas once and blit it each frame, redrawing only the moving parts.
 
+## Direction cues: geometry, not artwork
+
+The board shows which way marbles travel with no image files. Everything is computed from the same hole positions the game uses, so it stays correct under any rotation:
+
+- **Track chevrons**: for every pair of neighbouring loop holes, `stepBetween(a, b)` gives the midpoint and the angle from `a` to `b`, and `chevron(p, angle, ...)` builds a six-point polygon there. The gap between two holes is only 0.2 units, so the chevron is small: it nests in the "waist" where the two circles curve away from each other.
+- **Into home**: a filled `arrow()` from each pre-start hole to home slot 0, in the owner's colour, plus lighter chevrons down the home lane.
+- **The star ring**: a thin yellow band joining the stars, with black chevrons pointing clockwise, borrowed from the road signs on a sharp bend: star hops go clockwise. `starRingChevrons()` places two pairs on each stretch between stars, either side of the home hole that touches the circle; the tangent direction at angle θ is θ + 90°, because SVG's y axis points down. (A first version put a wide band round the centre hole, but it sat across the spokes, the links between the centre and the stars.)
+- **Rounded corners**: `roundedPath(points, radii)` turns a polygon into a path that stops short of each corner and curves round it with a quadratic Bézier, using the corner itself as the control point. A radius per corner lets an arm round its inner end while its outer end, hidden under the base pad, stays square.
+
 ## Animating SVG with CSS transforms
 
 Each marble is a `<g>` placed with an inline CSS transform:
@@ -122,5 +131,5 @@ Star Hop has about 300 SVG nodes, few updates per second, and needs focus, keybo
 
 1. Profile a 6-player bot game with the React DevTools Profiler. How long does `BoardBase` take per render? Memoise it (stable `seated` with `useMemo`, then `React.memo`) and measure again. Was it worth the code?
 2. Add a "rotate board" button that cycles `bottom`. What must happen to the marbles' transitions so they don't fly across the board?
-3. Draw the arms as rounded paths instead of polygons. Which module changes, and which must not?
+3. The arms are rounded paths now (`roundedPath` in layout.ts). Swap the quadratic Bézier for an SVG arc (`A`) command. When do the two look different?
 4. Prototype the board in Canvas for one evening. List everything you had to rebuild that SVG gave you free.

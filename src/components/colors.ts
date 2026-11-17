@@ -2,12 +2,17 @@ import type { Color } from '../game/types'
 
 export { COLOR_NAME } from '../game/describe'
 
-/** Strong colour for marbles, panels and home holes. Our own palette. */
-export const COLOR_HEX: Record<Color, string> = {
-  red: '#d9434b',
-  orange: '#ee8a2a',
-  yellow: '#e2b928',
-  green: '#3a9e5c',
-  blue: '#3170dc',
-  purple: '#8b55d4',
+/**
+ * Each player's colour for marbles, panels and home holes, as a CSS value.
+ * The colours themselves are theme tokens in index.css (--player-*): pastels
+ * on the light board, strong colours on the dark one. Use them through CSS
+ * (usually as --arm); they are not hex strings.
+ */
+export const PLAYER_COLOR: Record<Color, string> = {
+  red: 'var(--player-red)',
+  orange: 'var(--player-orange)',
+  yellow: 'var(--player-yellow)',
+  green: 'var(--player-green)',
+  blue: 'var(--player-blue)',
+  purple: 'var(--player-purple)',
 }

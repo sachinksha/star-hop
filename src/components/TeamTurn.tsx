@@ -2,7 +2,7 @@ import { isHelperTurn } from '../game/teams'
 import type { Color, GameState, Player } from '../game/types'
 import { liveNudges, suggestingTeammate, suggestionOptions } from '../net/nudges'
 import type { Nudge, TeamNudge } from '../net/protocol'
-import { COLOR_HEX } from './colors'
+import { PLAYER_COLOR } from './colors'
 import { Icon } from './Icons'
 
 interface TeamTurnProps {
@@ -64,7 +64,7 @@ export function TeamTurn({ game, choices, isMine, online, nudges, disabled, comp
               key={p.color}
               type="button"
               className={`team-choice${by.length ? ' team-choice-nudged' : ''}`}
-              style={{ ['--arm' as string]: COLOR_HEX[p.color] }}
+              style={{ ['--arm' as string]: PLAYER_COLOR[p.color] }}
               onClick={() => onRollFor(p.color)}
               disabled={disabled}
               aria-label={`Roll for ${p.name}${by.length ? `, ${by.join(' and ')} asked` : ''}`}

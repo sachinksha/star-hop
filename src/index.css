@@ -1,6 +1,6 @@
 /* Star Hop: our own look. Colour tokens first, light then dark. */
 :root {
-  --bg: #f3efe6;
+  --bg: #f8eee8;
   --surface: #fffdf8;
   --surface-2: #f7f2e8;
   --ink: #1f2430;
@@ -13,19 +13,41 @@
   --warn-bg: #fff4d6;
   --warn-line: #e3b341;
   --warn-ink: #6b4a00;
-  /* Board, light: warm cream board, dark track holes, colour-tinted arms. */
-  --board: #ebe2cd;
-  --board-edge: #b8a77f;
-  --arm-tint: 24%;
-  --arm-edge: 72%;
-  --arm-empty: 7%;
-  --hole: #262a33;
-  --hole-rim: #85775a;
-  --ring: #a4823a;
+  /* Board, light ("Sorbet"): warm paper-white board, shallow peach dimples for holes (dark
+     holes out-shouted the marbles: they were the highest-contrast thing on the board),
+     pastel-tinted arms. */
+  --board: #fff8f3;
+  --board-edge: #e2c7b8;
+  --arm-tint: 36%;
+  --arm-edge: 80%;
+  --arm-empty: 10%;
+  --hole: #f0e1d6;
+  --hole-rim: #d4baa9;
+  --home-hole: 55%;
+  --base-hole: 60%;
+  --marble-shadow: 0.3;
+  --halo-arm: 50%;
+  /* Players, light: pastels (option E, "Sorbet"). Marbles get a rim in a deeper shade of
+     their own colour, and text in a player's colour is darkened to stay readable. */
+  --player-red: #f0868c;
+  --player-orange: #f5ad6b;
+  --player-yellow: #f2cf5b;
+  --player-green: #7fcb98;
+  --player-blue: #7eaaea;
+  --player-purple: #b294e3;
+  --marble-rim-arm: 50%;
+  --arm-ink: 55%;
+  --arm-active-boost: 18%;
+  --arm-flash: arm-turn;
+  --ring: #c49a80;
   --spoke: 0.5;
   --star: #f4c542;
   --star-edge: #946b0c;
+  --chevron-ink: #241c0a;
+  --track-step: 0.55;
   --badge: #ffffff;
+  --halo: #1f2430;
+  --halo-selected: #b07d0a;
   --badge-ink: #1f2430;
   --veil: rgb(30 26 18 / 0.45);
   --shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 4px 14px rgb(0 0 0 / 0.06);
@@ -62,7 +84,24 @@
     --ring: #c9a64a;
     --spoke: 0.45;
     --star-edge: #b88a16;
+    --track-step: 0.6;
+    --home-hole: 35%;
+    --base-hole: 40%;
+    --marble-shadow: 0.4;
+    --halo-arm: 0%;
+    --arm-active-boost: 0%;
+    --arm-flash: none;
+    --player-red: #d9434b;
+    --player-orange: #ee8a2a;
+    --player-yellow: #e2b928;
+    --player-green: #3a9e5c;
+    --player-blue: #3170dc;
+    --player-purple: #8b55d4;
+    --marble-rim-arm: 45%;
+    --arm-ink: 100%;
     --badge: #fff8e6;
+    --halo: #ffffff;
+    --halo-selected: var(--star);
     --veil: rgb(8 10 16 / 0.6);
     color-scheme: dark;
   }
@@ -92,7 +131,24 @@
   --ring: #c9a64a;
   --spoke: 0.45;
   --star-edge: #b88a16;
+  --track-step: 0.6;
+  --home-hole: 35%;
+  --base-hole: 40%;
+  --marble-shadow: 0.4;
+  --halo-arm: 0%;
+  --arm-active-boost: 0%;
+  --arm-flash: none;
+  --player-red: #d9434b;
+  --player-orange: #ee8a2a;
+  --player-yellow: #e2b928;
+  --player-green: #3a9e5c;
+  --player-blue: #3170dc;
+  --player-purple: #8b55d4;
+  --marble-rim-arm: 45%;
+  --arm-ink: 100%;
   --badge: #fff8e6;
+  --halo: #ffffff;
+  --halo-selected: var(--star);
   --veil: rgb(8 10 16 / 0.6);
   color-scheme: dark;
 }
@@ -162,18 +218,18 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .seat-rotate-left { right: calc(100% + 0.4rem); }
 .seat-rotate-right { left: calc(100% + 0.4rem); }
 .seat-card .link-button.seat-sit { font-size: 0.85rem; }
-.seat-you { font-size: 0.78rem; font-weight: 700; color: var(--arm); }
+.seat-you { font-size: 0.78rem; font-weight: 700; color: color-mix(in srgb, var(--arm) var(--arm-ink), #000); }
 .seat-grid .seat-card { width: auto; min-width: 0; }
 .seat-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem; min-height: 96px; padding: 0.5rem; border: 2px dashed color-mix(in srgb, var(--arm) 45%, var(--line)); border-radius: 14px; background: transparent; color: var(--ink-soft); }
 .seat-empty .link-button { font-size: 0.85rem; min-height: 28px; }
 .seat-empty .seat-dot { opacity: 0.45; }
 .seat-empty-hint { font-size: 0.78rem; }
 .mini-board { display: block; width: 100%; height: auto; }
-.mini-arm polygon { fill: color-mix(in srgb, var(--arm) 14%, var(--board)); stroke: color-mix(in srgb, var(--arm) 35%, var(--board)); stroke-width: 0.08; }
-.mini-arm-on polygon { fill: color-mix(in srgb, var(--arm) 55%, var(--board)); stroke: var(--arm); }
+.mini-arm path { fill: color-mix(in srgb, var(--arm) 14%, var(--board)); stroke: color-mix(in srgb, var(--arm) 35%, var(--board)); stroke-width: 0.08; }
+.mini-arm-on path { fill: color-mix(in srgb, var(--arm) 55%, var(--board)); stroke: var(--arm); }
 .mini-arm-on .mini-base { fill: var(--arm); }
 .mini-arm-pickable { cursor: pointer; }
-@media (hover: hover) { .mini-arm-pickable:hover polygon { fill: color-mix(in srgb, var(--arm) 32%, var(--board)); } }
+@media (hover: hover) { .mini-arm-pickable:hover path { fill: color-mix(in srgb, var(--arm) 32%, var(--board)); } }
 
 /* ---------- Online: lobby, join, banners ---------- */
 .lobby { max-width: 560px; }
@@ -198,7 +254,7 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .lobby-leave { margin-top: 0.5rem; }
 .net-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 0.75rem; margin: 0 auto 0.75rem; padding: 0.5rem 0.75rem; max-width: 760px; border: 1px solid var(--warn-line); border-radius: 10px; background: var(--warn-bg); color: var(--warn-ink); font-size: 0.92rem; }
 .notice { display: flex; align-items: center; gap: 0.5rem; margin: 0 auto 0.6rem; max-width: 40rem; padding: 0.5rem 0.8rem; background: var(--surface); border: 2px solid var(--arm); border-left-width: 6px; border-radius: 10px; font-weight: 600; animation: notice-in 0.3s ease-out both; }
-.notice svg { flex: none; color: var(--arm); }
+.notice svg { flex: none; color: color-mix(in srgb, var(--arm) var(--arm-ink), #000); }
 @keyframes notice-in { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- Toolbar ---------- */
@@ -288,22 +344,33 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 .board-bg { fill: var(--board); stroke: var(--board-edge); stroke-width: 0.15; }
 .arm { fill: color-mix(in srgb, var(--arm) var(--arm-tint), var(--board)); stroke: color-mix(in srgb, var(--arm) var(--arm-edge), var(--board)); stroke-width: 0.06; stroke-linejoin: round; }
 .arm-empty { fill: color-mix(in srgb, var(--arm) var(--arm-empty), var(--board)); stroke: color-mix(in srgb, var(--arm) 25%, var(--board)); }
-.arm-active { stroke: var(--arm); stroke-width: 0.14; }
+.arm-active {
+  fill: color-mix(in srgb, var(--arm) calc(var(--arm-tint) + var(--arm-active-boost)), var(--board));
+  stroke: var(--arm);
+  stroke-width: 0.14;
+  /* Light theme: a short swell of the outline when the turn passes to this arm, then steady. */
+  animation: var(--arm-flash) 0.5s ease-in-out 2;
+}
+@keyframes arm-turn { 50% { stroke-width: 0.4; } }
 /* Each player's base: a solid pad in their colour, with darker holes. */
 .base-pad { fill: var(--arm); stroke: color-mix(in srgb, var(--arm) 70%, #000); stroke-width: 0.06; stroke-linejoin: round; }
 .base-pad-empty { fill: color-mix(in srgb, var(--arm) 30%, var(--board)); stroke: color-mix(in srgb, var(--arm) 40%, var(--board)); }
-.star-ring { fill: none; stroke: var(--ring); stroke-width: 0.07; stroke-dasharray: 0.2 0.16; opacity: 0.8; }
 .spoke { stroke: var(--ring); stroke-width: 0.12; opacity: var(--spoke); }
 .star { fill: var(--star); stroke: var(--star-edge); stroke-width: 0.05; stroke-linejoin: round; }
 .center-ring { fill: none; stroke: var(--star-edge); stroke-width: 0.1; }
 .home-lane { stroke: var(--arm); stroke-width: 0.9; stroke-linecap: round; opacity: 0.9; }
-.home-arrow { stroke: var(--arm); stroke-width: 0.12; stroke-dasharray: 0.12 0.1; }
+/* Direction hints. The star band borrows the yellow-and-black chevrons of a road sign on a bend. */
+.star-band { fill: none; stroke: var(--star); }
+.star-chevron { fill: var(--chevron-ink); }
+.track-step { fill: color-mix(in srgb, var(--arm) 45%, var(--ink)); opacity: var(--track-step); }
+.home-step { fill: color-mix(in srgb, var(--arm) 30%, #fff); opacity: 0.85; }
+.home-entry { fill: var(--arm); stroke: color-mix(in srgb, var(--arm) 45%, #000); stroke-width: 0.04; stroke-linejoin: round; }
 .hole { fill: var(--hole); stroke: var(--hole-rim); stroke-width: 0.05; }
 .hole-start { stroke: var(--arm); stroke-width: 0.14; }
 .hole-star { stroke: var(--star-edge); }
 .hole-center { stroke: var(--star-edge); stroke-width: 0.1; }
-.hole-home { fill: color-mix(in srgb, var(--arm) 35%, #000); stroke: color-mix(in srgb, var(--arm) 60%, #000); }
-.hole-base { fill: color-mix(in srgb, var(--arm) 40%, #000); stroke: color-mix(in srgb, var(--arm) 55%, #000); }
+.hole-home { fill: color-mix(in srgb, var(--arm) var(--home-hole), #000); stroke: color-mix(in srgb, var(--arm) calc(var(--home-hole) + 25%), #000); }
+.hole-base { fill: color-mix(in srgb, var(--arm) var(--base-hole), #000); stroke: color-mix(in srgb, var(--arm) calc(var(--base-hole) + 15%), #000); }
 
 .marble { transition: transform 0.13s linear; }
 /* No browser focus ring on board pieces, on any kind of focus. Mobile Chrome draws
@@ -311,16 +378,20 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
    units: a ring hundreds of pixels wide that stayed until focus moved. The halo
    below is the focus indicator instead, shown only for keyboard focus. */
 .marble, .badge { outline: none; }
-.marble-body { fill: var(--arm); stroke: rgb(0 0 0 / 0.55); stroke-width: 0.04; }
+.marble-body { fill: var(--arm); stroke: color-mix(in srgb, var(--arm) var(--marble-rim-arm), #000); stroke-width: 0.045; }
+/* A soft shadow down and to the right, so marbles sit on the board rather than in it. */
+.marble-shadow { fill: rgb(0 0 0 / var(--marble-shadow)); pointer-events: none; }
 .marble-shine { fill: #fff; opacity: 0.5; pointer-events: none; }
 .marble-hit { fill: transparent; }
-.marble-halo { fill: none; stroke: #fff; stroke-width: 0.07; animation: glow 1.2s ease-in-out infinite; }
+/* White on the dark board. On the light one a pale halo vanishes, so it is a deep shade
+   of the marble's own colour: it stands out and says whose marbles are ready. */
+.marble-halo { fill: none; stroke: color-mix(in srgb, var(--arm) var(--halo-arm), var(--halo)); stroke-width: 0.09; animation: glow 1.2s ease-in-out infinite; }
 .marble-pickable { cursor: pointer; }
 .marble-pickable:focus-visible .marble-halo { stroke: var(--focus); stroke-width: 0.12; }
-.marble-selected .marble-halo { stroke: var(--star); stroke-width: 0.12; animation: none; }
+.marble-selected .marble-halo { stroke: var(--halo-selected); stroke-width: 0.12; animation: none; }
 /* Picking a marble sends out one ring that grows and fades, then gets out of the way.
    At rest it is invisible, so with animations off (reduced motion) nothing shows. */
-.marble-ping { fill: none; stroke: var(--star); stroke-width: 0.08; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: ping 0.55s ease-out; }
+.marble-ping { fill: none; stroke: var(--halo-selected); stroke-width: 0.08; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: ping 0.55s ease-out; }
 @keyframes ping { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(2.2); } }
 .marble-number { font-size: 0.4px; font-weight: 700; fill: #fff; paint-order: stroke; stroke: rgb(0 0 0 / 0.6); stroke-width: 0.06px; pointer-events: none; }
 @keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -366,7 +437,7 @@ kbd { font: inherit; font-size: 0.8rem; padding: 0.05rem 0.35rem; border-radius:
 
 .finish-banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 0.8rem 1.4rem; border-radius: 14px; background: var(--surface); border: 3px solid var(--arm); box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); text-align: center; overflow: visible; }
 .finish-text { margin: 0; font-size: 1.3rem; font-weight: 700; display: flex; align-items: baseline; gap: 0.5rem; }
-.finish-rank { color: var(--arm); font-size: 1.6rem; }
+.finish-rank { color: color-mix(in srgb, var(--arm) var(--arm-ink), #000); font-size: 1.6rem; }
 
 .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 .finish-banner .confetti { position: absolute; inset: -60px; }

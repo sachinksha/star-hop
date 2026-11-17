@@ -1,7 +1,7 @@
 import { COLORS, STAR_INDICES } from '../game/board'
 import { VIEW_HALF_X, VIEW_HALF_Y, armOutline, baseOutline, loopPoint, starShape } from '../game/layout'
 import type { Color } from '../game/types'
-import { COLOR_HEX, COLOR_NAME } from './colors'
+import { PLAYER_COLOR, COLOR_NAME } from './colors'
 
 interface MiniBoardProps {
   /** Arm drawn at the bottom: the seat this device will play, as in the game. */
@@ -29,12 +29,12 @@ export function MiniBoard({ bottom, seated, onPickArm }: MiniBoardProps) {
           <g
             key={color}
             className={`mini-arm${on ? ' mini-arm-on' : ''}${pick ? ' mini-arm-pickable' : ''}`}
-            style={{ ['--arm' as string]: COLOR_HEX[color] }}
+            style={{ ['--arm' as string]: PLAYER_COLOR[color] }}
             onClick={pick}
           >
             <title>{on ? `${COLOR_NAME[color]}: seated` : `${COLOR_NAME[color]}: empty`}</title>
-            <polygon points={armOutline(arm, bottom)} />
-            <polygon className="mini-base" points={baseOutline(arm, bottom)} />
+            <path d={armOutline(arm, bottom)} />
+            <path className="mini-base" d={baseOutline(arm, bottom)} />
           </g>
         )
       })}

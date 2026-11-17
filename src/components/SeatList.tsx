@@ -1,6 +1,6 @@
 import { teamLabel } from '../game/teams'
 import type { SeatView } from '../net/protocol'
-import { COLOR_HEX, COLOR_NAME } from './colors'
+import { PLAYER_COLOR, COLOR_NAME } from './colors'
 
 /** Lobby seat status, shared by the host lobby and the guest waiting screen. */
 function status(seat: SeatView, mine: boolean): string {
@@ -20,7 +20,7 @@ export function SeatList({ seats, myColor }: { seats: SeatView[]; myColor?: stri
           <li
             key={seat.color}
             className={`lobby-seat${seat.remote && !seat.joined ? ' lobby-seat-open' : ''}`}
-            style={{ ['--arm' as string]: COLOR_HEX[seat.color] }}
+            style={{ ['--arm' as string]: PLAYER_COLOR[seat.color] }}
           >
             <span className="panel-dot" aria-hidden="true" />
             <span className="lobby-seat-name">{seat.remote && !seat.joined ? COLOR_NAME[seat.color] : seat.name}</span>

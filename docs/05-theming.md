@@ -77,6 +77,21 @@ Because the tint mixes with `var(--board)`, the same rule gives a pale tint on t
 
 Setting a custom property inline (`style={{ '--arm': ... }}`) is also how dynamic values reach CSS without generating classes at runtime, and it is cheaper than CSS-in-JS for per-instance values.
 
+## A light theme is not the dark theme inverted
+
+The light board first used the dark theme's near-black holes on cream. Every colour was fine on its own, but the visual hierarchy was upside down. On the dark board the holes sink into the background and the marbles glow. On cream, roughly 160 near-black holes were the highest-contrast thing on screen, so they drew the eye and the marbles had to compete with them. Players said the light theme "felt like a downgrade" and that it was hard to tell whose marbles were ready to move.
+
+The fix was to rank the elements by importance and give contrast in that order, separately for each theme:
+
+1. **Marbles** (what you act on): saturated, outlined, with a soft drop shadow (`--marble-shadow`) so they sit on the board.
+2. **The current player** (whose turn): the active arm gets a stronger tint (`--arm-active-boost`) and, in light mode, its outline swells twice when the turn arrives (`--arm-flash`), then stays steady. A continuous pulse on the arm as well as the marbles would be two things competing for attention, and more motion than the job needs.
+3. **The pickable marbles' halo**: white on dark, but on light a deep shade of the marble's own colour (`color-mix(in srgb, var(--arm) var(--halo-arm), var(--halo))`), so the glow also says whose marbles they are.
+4. **Holes** (where pieces can go): shallow dimples (`--hole: #d3c7a9`), only a step darker than the board.
+
+Each of these is a token with a value per theme, so the dark theme is unchanged.
+
+The light theme then got its own palette ("Sorbet"): a warm paper-white board with peach dimples, and **pastel player colours**. Player colours used to be hex strings in TypeScript (`COLOR_HEX`), which meant one palette for every theme. Now `PLAYER_COLOR` holds `var(--player-red)` and so on, and the hex values are tokens in index.css: pastels in light, the original strong colours in dark. Every component already passed the colour to CSS as `--arm`, so none of them changed. Pastels need two adjustments: each marble's rim is a deeper shade of its own colour (`--marble-rim-arm`) rather than black, which looks heavy on pastels, and text drawn in a player's colour is darkened (`--arm-ink`) so it stays readable on a light surface. Note that `--arm` is set per element, so a token can't contain `var(--arm)` (a custom property resolves `var()` on the element where it is declared, here `:root`). The rule mixes in `var(--arm)` itself, and the token carries only the percentage.
+
 ## `color-scheme` tells the browser too
 
 ```css

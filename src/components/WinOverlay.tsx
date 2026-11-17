@@ -1,6 +1,6 @@
 import { teamLabel, type TeamStanding } from '../game/teams'
 import type { Color } from '../game/types'
-import { COLOR_HEX, COLOR_NAME } from './colors'
+import { PLAYER_COLOR, COLOR_NAME } from './colors'
 import { unit } from './random'
 
 interface WinOverlayProps {
@@ -20,7 +20,7 @@ interface WinOverlayProps {
   note?: string
 }
 
-const PALETTE = Object.values(COLOR_HEX)
+const PALETTE = Object.values(PLAYER_COLOR)
 
 /** Confetti pieces with fixed, varied positions and timings. */
 const PIECES = Array.from({ length: 90 }, (_, i) => ({
@@ -84,7 +84,7 @@ export function WinOverlay({ winners, teams, names = {}, time, early, onNewGame,
         ) : (
         <ol className="standings">
           {winners.map((c, i) => (
-            <li key={c} style={{ ['--arm' as string]: COLOR_HEX[c] }}>
+            <li key={c} style={{ ['--arm' as string]: PLAYER_COLOR[c] }}>
               <span className="standing-rank">{i + 1}</span>
               <span className="standing-dot" aria-hidden="true" />
               {label(c)}

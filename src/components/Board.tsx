@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { COLORS, LOOP_LENGTH, STAR_INDICES, isStar, preStartIndex, startIndex } from '../game/board'
+import { ARM_COUNT, COLORS, LOOP_LENGTH, SECTOR_LENGTH, STAR_INDICES, isStar, preStartIndex, startIndex } from '../game/board'
 import { describeBoard, destinationLabel } from '../game/describe'
 import {
   BOARD_CORNER,
@@ -8,20 +8,25 @@ import {
   CENTER_POINT,
   HOLE_R,
   MARBLE_R,
+  STAR_BAND_WIDTH,
   STAR_RADIUS,
   VIEW_HALF_X,
   VIEW_HALF_Y,
   armOutline,
   baseOutline,
   basePoint,
+  arrow,
+  starRingChevrons,
+  chevron,
   homePoint,
   loopPoint,
   marblePoint,
   starShape,
+  stepBetween,
   type Point,
 } from '../game/layout'
 import type { Color, Move, Player } from '../game/types'
-import { COLOR_HEX, COLOR_NAME } from './colors'
+import { PLAYER_COLOR, COLOR_NAME } from './colors'
 import type { PadTarget } from './MovePad'
 import { snapTap } from './snap'
 import { isTeammate } from '../game/teams'
@@ -66,6 +71,22 @@ const onActivate = (fn: () => void) => (e: KeyboardEvent) => {
   }
 }
 
+/**
+ * Small chevrons in the gaps between neighbouring holes of each arm, pointing
+ * the way marbles walk: out along one side, across the end, back down the
+ * other. The links to the stars are left out: the star shapes fill those gaps.
+ */
+function trackSteps(bottom: number) {
+  const steps: { key: string; p: Point; angle: number; color: Color }[] = []
+  for (let arm = 0; arm < ARM_COUNT; arm++) {
+    for (let o = 1; o < SECTOR_LENGTH - 1; o++) {
+      const pos = arm * SECTOR_LENGTH + o
+      steps.push({ key: `step-${pos}`, ...stepBetween(loopPoint(pos, bottom), loopPoint(pos + 1, bottom)), color: COLORS[arm]! })
+    }
+  }
+  return steps
+}
+
 /** The static board: arms, stars, centre and every hole. Drawn once per rotation. */
 function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Set<Color>; activeColor: Color | null }) {
   return (
@@ -79,22 +100,26 @@ function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Se
         rx={BOARD_CORNER}
       />
       {COLORS.map((color, arm) => (
-        <polygon
+        <path
           key={`arm-${color}`}
           className={`arm${seated.has(color) ? '' : ' arm-empty'}${color === activeColor ? ' arm-active' : ''}`}
-          points={armOutline(arm, bottom)}
-          style={{ ['--arm' as string]: COLOR_HEX[color] }}
+          d={armOutline(arm, bottom)}
+          style={{ ['--arm' as string]: PLAYER_COLOR[color] }}
         />
       ))}
       {COLORS.map((color, arm) => (
-        <polygon
+        <path
           key={`base-${color}`}
           className={`base-pad${seated.has(color) ? '' : ' base-pad-empty'}`}
-          points={baseOutline(arm, bottom)}
-          style={{ ['--arm' as string]: COLOR_HEX[color] }}
+          d={baseOutline(arm, bottom)}
+          style={{ ['--arm' as string]: PLAYER_COLOR[color] }}
         />
       ))}
-      <circle className="star-ring" cx={0} cy={0} r={STAR_RADIUS} />
+      {/* The stars joined by a thin yellow band of black chevrons turning clockwise, the way star hops go. */}
+      <circle className="star-band" cx={0} cy={0} r={STAR_RADIUS} strokeWidth={STAR_BAND_WIDTH} />
+      {starRingChevrons(bottom).map(({ p, angle }, i) => (
+        <polygon key={`band-${i}`} className="star-chevron" points={chevron(p, angle, 0.1, 0.08, 0.06)} />
+      ))}
       {STAR_INDICES.map((pos) => {
         const p = loopPoint(pos, bottom)
         return <line key={`spoke-${pos}`} className="spoke" x1={0} y1={0} x2={p.x} y2={p.y} />
@@ -104,16 +129,20 @@ function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Se
       ))}
       <circle className="center-ring" cx={0} cy={0} r={0.72} />
 
-      {/* Home columns, with an arrow from each pre-start hole into home. */}
+      {/* Home columns. The arrow in from each pre-start hole is drawn over the holes, below. */}
       {COLORS.map((color) => {
         const first = homePoint(color, 0, bottom)
         const last = homePoint(color, 3, bottom)
-        const pre = loopPoint(preStartIndex(color), bottom)
         return (
-          <g key={`homecol-${color}`} style={{ ['--arm' as string]: COLOR_HEX[color] }}>
-            <line className="home-lane" x1={first.x} y1={first.y} x2={last.x} y2={last.y} />
-            <line className="home-arrow" x1={pre.x} y1={pre.y} x2={first.x} y2={first.y} />
-          </g>
+          <line
+            key={`homecol-${color}`}
+            className="home-lane"
+            x1={first.x}
+            y1={first.y}
+            x2={last.x}
+            y2={last.y}
+            style={{ ['--arm' as string]: PLAYER_COLOR[color] }}
+          />
         )
       })}
 
@@ -127,7 +156,7 @@ function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Se
             cx={p.x}
             cy={p.y}
             r={HOLE_R}
-            style={startOf ? { ['--arm' as string]: COLOR_HEX[startOf] } : undefined}
+            style={startOf ? { ['--arm' as string]: PLAYER_COLOR[startOf] } : undefined}
           />
         )
       })}
@@ -137,13 +166,30 @@ function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Se
           const h = homePoint(color, slot, bottom)
           const b = basePoint(color, slot, bottom)
           return (
-            <g key={`private-${color}-${slot}`} style={{ ['--arm' as string]: COLOR_HEX[color] }}>
+            <g key={`private-${color}-${slot}`} style={{ ['--arm' as string]: PLAYER_COLOR[color] }}>
               <circle className="hole hole-home" cx={h.x} cy={h.y} r={HOLE_R} />
               <circle className="hole hole-base" cx={b.x} cy={b.y} r={HOLE_R} />
             </g>
           )
         }),
       )}
+
+      {trackSteps(bottom).map(({ key, p, angle, color }) => (
+        <polygon key={key} className="track-step" points={chevron(p, angle, 0.17, 0.09, 0.06)} style={{ ['--arm' as string]: PLAYER_COLOR[color] }} />
+      ))}
+      {COLORS.map((color) => {
+        const into = stepBetween(loopPoint(preStartIndex(color), bottom), homePoint(color, 0, bottom))
+        return (
+          <g key={`home-steps-${color}`} style={{ ['--arm' as string]: PLAYER_COLOR[color] }}>
+            {/* The turn off the loop into home: bold, in the owner's colour. */}
+            <polygon className="home-entry" points={arrow(into.p, into.angle, 0.6, 0.13, 0.4)} />
+            {[0, 1, 2].map((slot) => {
+              const s = stepBetween(homePoint(color, slot, bottom), homePoint(color, slot + 1, bottom))
+              return <polygon key={slot} className="home-step" points={chevron(s.p, s.angle, 0.2, 0.09, 0.07)} />
+            })}
+          </g>
+        )
+      })}
     </g>
   )
 }
@@ -153,7 +199,7 @@ function LastMoveTrail({ color, move, bottom }: { color: Color; move: Move; bott
   const at = (spot: Move['from']) => marblePoint(color, move.marbleId, spot, bottom)
   const from = at(move.from)
   return (
-    <g style={{ ['--arm' as string]: COLOR_HEX[color] }} aria-hidden="true">
+    <g style={{ ['--arm' as string]: PLAYER_COLOR[color] }} aria-hidden="true">
       <polyline className="last-move" points={[move.from, ...move.path].map((s) => fmt(at(s))).join(' ')} />
       <circle className="last-move-from" cx={from.x} cy={from.y} r={HOLE_R + 0.08} />
     </g>
@@ -235,7 +281,7 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
           <polyline
             className="path-preview"
             points={[-1, ...previewMove.path.keys()].map((i) => fmt(pointOf(previewMove, i))).join(' ')}
-            style={{ ['--arm' as string]: COLOR_HEX[active.color] }}
+            style={{ ['--arm' as string]: PLAYER_COLOR[active.color] }}
             aria-hidden="true"
           />
         )}
@@ -252,7 +298,7 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
                 key={`marble-${player.color}-${m.id}`}
                 className={`marble${canPick ? ' marble-pickable' : ''}${isSelected ? ' marble-selected' : ''}${mine && padMarble === m.id ? ' marble-previewed' : ''}`}
                 data-hit={canPick ? '' : undefined}
-                style={{ transform: `translate(${p.x}px, ${p.y}px)${scale !== 1 ? ` scale(${scale})` : ''}`, ['--arm' as string]: COLOR_HEX[player.color] }}
+                style={{ transform: `translate(${p.x}px, ${p.y}px)${scale !== 1 ? ` scale(${scale})` : ''}`, ['--arm' as string]: PLAYER_COLOR[player.color] }}
                 data-testid={`marble-${player.color}-${m.id}`}
                 data-shared={scale !== 1 ? '' : undefined}
                 role={canPick ? 'button' : undefined}
@@ -267,6 +313,7 @@ export function Board({ players, bottom, activeColor, pickable, selected, destin
                 {(canPick || isSelected) && <circle className="marble-halo" r={MARBLE_R + 0.13} />}
                 {/* Mounts on selection, so its one-shot animation plays each time a marble is picked. */}
                 {isSelected && <circle className="marble-ping" r={MARBLE_R + 0.13} />}
+                <circle className="marble-shadow" cx={0.045} cy={0.07} r={MARBLE_R} />
                 <circle className="marble-body" r={MARBLE_R} />
                 <circle className="marble-shine" cx={-0.09} cy={-0.11} r={0.1} />
                 {showNumbers && mine && (

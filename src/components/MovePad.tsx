@@ -1,7 +1,7 @@
 import { shortDestination, shortSpot } from '../game/describe'
 import { isTeammate } from '../game/teams'
 import { MARBLES_PER_PLAYER, type Color, type Move, type Player } from '../game/types'
-import { COLOR_HEX } from './colors'
+import { PLAYER_COLOR } from './colors'
 
 /** What a pad button points at on the board, for the press-to-preview highlight. */
 export type PadTarget = { kind: 'marble'; id: number } | { kind: 'destination'; index: number }
@@ -46,7 +46,7 @@ export function MovePad({ player, players, pickable, selected, destinations, mov
 
   if (selected !== null) {
     return (
-      <div className="move-pad" role="group" aria-label={`Where marble ${selected + 1} goes`} style={{ ['--arm' as string]: COLOR_HEX[color] }}>
+      <div className="move-pad" role="group" aria-label={`Where marble ${selected + 1} goes`} style={{ ['--arm' as string]: PLAYER_COLOR[color] }}>
         <button type="button" className="pad-back" onClick={onBack} aria-label="Back to picking a marble">
           <span aria-hidden="true">‹</span>
           <span className="pad-sub">Back</span>
@@ -76,7 +76,7 @@ export function MovePad({ player, players, pickable, selected, destinations, mov
   }
 
   return (
-    <div className="move-pad" role="group" aria-label="Pick a marble" style={{ ['--arm' as string]: COLOR_HEX[color] }}>
+    <div className="move-pad" role="group" aria-label="Pick a marble" style={{ ['--arm' as string]: PLAYER_COLOR[color] }}>
       {Array.from({ length: MARBLES_PER_PLAYER }, (_, id) => {
         const marble = player.marbles.find((m) => m.id === id)
         const can = pickable.includes(id)

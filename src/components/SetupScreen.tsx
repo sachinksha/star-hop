@@ -6,7 +6,7 @@ import { TEAM_OPTIONS, assignTeams, teamLabel } from '../game/teams'
 import { HOUSE_RULE_KEYS, MAX_NAME_LENGTH, type Color, type PlayerConfig } from '../game/types'
 import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { useGameStore } from '../store/gameStore'
-import { COLOR_HEX, COLOR_NAME } from './colors'
+import { PLAYER_COLOR, COLOR_NAME } from './colors'
 import { Icon } from './Icons'
 import { RulesButton } from './RulesSheet'
 import { MiniBoard } from './SeatMap'
@@ -245,7 +245,7 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
             </button>
           </div>
           {COLORS.filter((c) => !seats.includes(c)).map((color) => (
-            <div key={color} className="seat-empty" style={{ gridArea: seatArea(armOf(color), bottom), ['--arm' as string]: COLOR_HEX[color] }}>
+            <div key={color} className="seat-empty" style={{ gridArea: seatArea(armOf(color), bottom), ['--arm' as string]: PLAYER_COLOR[color] }}>
               <span className="seat-dot" aria-hidden="true" />
               <span>{COLOR_NAME[color]}</span>
               <button type="button" className="link-button" onClick={() => pickArm(color)} aria-label={`Add a seat on ${COLOR_NAME[color]}`}>
@@ -262,7 +262,7 @@ export function SetupScreen({ onStart, initial, busy = false, error = null }: Se
           const error = errors[color]
           const inputId = `name-${color}`
           return (
-            <div key={color} className="seat-card" style={{ gridArea: seatArea(armOf(color), bottom), ['--arm' as string]: COLOR_HEX[color] }}>
+            <div key={color} className="seat-card" style={{ gridArea: seatArea(armOf(color), bottom), ['--arm' as string]: PLAYER_COLOR[color] }}>
               {teams && <span className={`team-chip team-chip-wide team-${teams[i]}`}>{teamLabel(teams[i]!)}</span>}
               <div className="seat-kind">
                 <span className="seat-dot" aria-hidden="true" />
