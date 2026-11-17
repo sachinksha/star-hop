@@ -4,6 +4,9 @@ A browser marble race game for 2 to 6 players, built with React, TypeScript, Vit
 
 Star Hop belongs to the traditional family of marble-and-die race games (descended from Pachisi). It is built on the architecture of the author's Ludo game. Status and next steps are in [PLAN.md](PLAN.md).
 
+## Play now (free)
+
+https://star-hop-game.vercel.app/
 ## Quick start
 
 ```sh
