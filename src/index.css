@@ -282,6 +282,9 @@ legend { font-weight: 600; margin: 0 auto 0.5rem; }
 /* ---------- Board ---------- */
 .board-wrap { position: relative; }
 .board { display: block; width: 100%; height: auto; max-height: calc(100dvh - 8rem); }
+/* Play surfaces and controls: clicks and drags shouldn't select marble/badge
+   shortcut numbers, button labels or key hints, or pop the iOS long-press callout. */
+.board, button, kbd { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .board-bg { fill: var(--board); stroke: var(--board-edge); stroke-width: 0.15; }
 .arm { fill: color-mix(in srgb, var(--arm) var(--arm-tint), var(--board)); stroke: color-mix(in srgb, var(--arm) var(--arm-edge), var(--board)); stroke-width: 0.06; stroke-linejoin: round; }
 .arm-empty { fill: color-mix(in srgb, var(--arm) var(--arm-empty), var(--board)); stroke: color-mix(in srgb, var(--arm) 25%, var(--board)); }
