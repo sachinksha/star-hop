@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { ARM_COUNT, COLORS, LOOP_LENGTH, SECTOR_LENGTH, STAR_INDICES, isStar, preStartIndex, startIndex } from '../game/board'
 import { describeBoard, destinationLabel } from '../game/describe'
 import {
@@ -13,6 +13,7 @@ import {
   VIEW_HALF_X,
   VIEW_HALF_Y,
   armOutline,
+  baseCorners,
   baseOutline,
   basePoint,
   arrow,
@@ -87,6 +88,50 @@ function trackSteps(bottom: number) {
   return steps
 }
 
+/**
+ * A band of light that sweeps across the active player's base pad when their
+ * turn starts, to draw the eye to whose turn it is. Clipped to the pad; at rest
+ * (and with reduced motion) the band sits off the pad, so nothing shows. Keyed
+ * by colour, so it plays again for each new player but not on a bonus roll.
+ */
+function BaseGleam({ arm, bottom }: { arm: number; bottom: number }) {
+  const id = useId()
+  const corners = baseCorners(arm, bottom)
+  const xs = corners.map((p) => p.x)
+  const ys = corners.map((p) => p.y)
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  const band = 1.2
+  const slant = (y1 - y0) * 0.35
+  // A slanted band just left of the pad; the animation slides it right, past the far edge.
+  const points = [
+    { x: x0 - band - slant, y: y1 },
+    { x: x0 - slant, y: y1 },
+    { x: x0, y: y0 },
+    { x: x0 - band, y: y0 },
+  ]
+  return (
+    <g clipPath={`url(#${id}-clip)`}>
+      <defs>
+        <clipPath id={`${id}-clip`}>
+          <path d={baseOutline(arm, bottom)} />
+        </clipPath>
+        <linearGradient id={`${id}-shine`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon
+        className="base-gleam"
+        data-testid="base-gleam"
+        points={points.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' ')}
+        fill={`url(#${id}-shine)`}
+        style={{ ['--gleam-dx' as string]: `${(x1 - x0 + band + slant).toFixed(3)}px` }}
+      />
+    </g>
+  )
+}
+
 /** The static board: arms, stars, centre and every hole. Drawn once per rotation. */
 function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Set<Color>; activeColor: Color | null }) {
   return (
@@ -115,6 +160,7 @@ function BoardBase({ bottom, seated, activeColor }: { bottom: number; seated: Se
           style={{ ['--arm' as string]: PLAYER_COLOR[color] }}
         />
       ))}
+      {activeColor && <BaseGleam key={activeColor} arm={COLORS.indexOf(activeColor)} bottom={bottom} />}
       {/* The stars joined by a thin yellow band of black chevrons turning clockwise, the way star hops go. */}
       <circle className="star-band" cx={0} cy={0} r={STAR_RADIUS} strokeWidth={STAR_BAND_WIDTH} />
       {starRingChevrons(bottom).map(({ p, angle }, i) => (

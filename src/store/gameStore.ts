@@ -4,7 +4,7 @@ import { SOUND_THEME_IDS, type SoundThemeId } from '../audio/themes'
 import { describeEvent } from '../game/describe'
 import { applyAction, createGame, type Rng } from '../game/engine'
 import { replay, undoIndex } from '../game/history'
-import { HOUSE_RULE_KEYS, NO_HOUSE_RULES, type GameAction, type GameState, type HouseRules, type PlayerConfig } from '../game/types'
+import { ALL_HOUSE_RULES, NO_HOUSE_RULES, type GameAction, type GameState, type HouseRules, type PlayerConfig } from '../game/types'
 
 // ---------------------------------------------------------------------------
 // Browser storage. Every access is wrapped: storage can be blocked, full, or
@@ -41,14 +41,8 @@ export interface Settings {
   autoMove: boolean
   /** Show Undo and Redo (local games only). Off by default: undo changes how the game plays. */
   undo: boolean
-  /** Raise the odds of a 1 or 6 for players stuck in base for a long time (R13). */
-  comebackDice: boolean
-  /** House rules for new games (R22-R24). A game keeps the rules it started with. */
-  houseRules: HouseRules
   /** Sound effects on. */
   sound: boolean
-  /** Colour theme. 'system' follows the device's light or dark setting. */
-  theme: Theme
   /** Which instrument voices the sound effects. */
   soundTheme: SoundThemeId
   /** Sound effects volume, 0 to 1. */
@@ -61,35 +55,18 @@ export interface Settings {
   moveButtons: MoveButtons
 }
 
-export type Theme = 'system' | 'light' | 'dark'
-export const THEMES: readonly Theme[] = ['system', 'light', 'dark']
 export type MoveButtons = 'auto' | 'on' | 'off'
 export const MOVE_BUTTONS: readonly MoveButtons[] = ['auto', 'on', 'off']
 
 /** The settings that are simple on/off switches. */
 export type ToggleSetting = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings]
 
-/**
- * Applies a theme to the page. 'system' removes the override so the CSS
- * follows prefers-color-scheme. index.html runs the same logic inline before
- * first paint, so a dark-theme user never sees a light flash.
- */
-export function applyTheme(theme: Theme): void {
-  if (typeof document === 'undefined') return
-  if (theme === 'system') delete document.documentElement.dataset.theme
-  else document.documentElement.dataset.theme = theme
-}
-
 export const SETTINGS_KEY = 'star-hop:settings'
 export const DEFAULT_SETTINGS: Settings = {
   autoRoll: false,
   autoMove: false,
   undo: false,
-  comebackDice: true,
-  // Every house rule on: how the game was played growing up.
-  houseRules: { rollSixesFirst: true, crossCentre: true, safeStarts: true },
   sound: true,
-  theme: 'system',
   soundTheme: 'tabla',
   volume: 0.8,
   moveButtons: 'auto',
@@ -99,19 +76,13 @@ function loadSettings(): Settings {
   const parsed = readJson(SETTINGS_KEY)
   const settings = { ...DEFAULT_SETTINGS }
   if (isObject(parsed)) {
-    for (const key of ['autoRoll', 'autoMove', 'undo', 'comebackDice', 'sound'] as const) {
+    for (const key of ['autoRoll', 'autoMove', 'undo', 'sound'] as const) {
       const value = parsed[key]
       if (typeof value === 'boolean') settings[key] = value
     }
-    if (THEMES.includes(parsed.theme as Theme)) settings.theme = parsed.theme as Theme
     if (SOUND_THEME_IDS.includes(parsed.soundTheme as SoundThemeId)) settings.soundTheme = parsed.soundTheme as SoundThemeId
     if (typeof parsed.volume === 'number' && parsed.volume >= 0 && parsed.volume <= 1) settings.volume = parsed.volume
     if (MOVE_BUTTONS.includes(parsed.moveButtons as MoveButtons)) settings.moveButtons = parsed.moveButtons as MoveButtons
-    if (isObject(parsed.houseRules)) {
-      const saved = parsed.houseRules
-      settings.houseRules = { ...NO_HOUSE_RULES }
-      for (const key of HOUSE_RULE_KEYS) if (typeof saved[key] === 'boolean') settings.houseRules[key] = saved[key]
-    }
   }
   return settings
 }
@@ -223,6 +194,12 @@ export interface GameStoreState {
   /** Whether the game log is expanded. Hidden by default; kept across games. */
   logOpen: boolean
   settings: Settings
+  /**
+   * House rules (R22-R24) for new games. Always every rule in the app: they are
+   * how the game is played, not a choice. Tests set it to play the base rules.
+   * Not saved; a game keeps the rules it started with.
+   */
+  newGameRules: HouseRules
 
   /** Starts a local game. `rng` picks bot styles and the first player (injectable for tests). */
   start: (configs: PlayerConfig[], rng?: Rng) => void
@@ -274,7 +251,6 @@ function persist(s: Pick<GameStoreState, 'configs' | 'initial' | 'actions' | 'ga
 function initialState() {
   const settings = loadSettings()
   applySound(settings)
-  applyTheme(settings.theme)
   const saved = loadSavedGame()
   return {
     configs: saved?.configs ?? null,
@@ -286,6 +262,7 @@ function initialState() {
     paused: saved !== null,
     logOpen: false,
     settings,
+    newGameRules: ALL_HOUSE_RULES,
     ...derive(saved?.initial ?? null, saved?.actions ?? []),
   }
 }
@@ -295,7 +272,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
 
   start: (configs, rng) => {
     if (!hasHuman(configs)) return
-    const initial = createGame(configs, rng, get().settings.houseRules)
+    const initial = createGame(configs, rng, get().newGameRules)
     writeJson(LAST_SETUP_KEY, configs)
     set((s) => ({
       configs,
@@ -365,8 +342,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
     const settings = { ...get().settings, ...patch }
     writeJson(SETTINGS_KEY, settings)
     applySound(settings)
-    applyTheme(settings.theme)
-    set({ settings })
+      set({ settings })
   },
 
   abort: () => {

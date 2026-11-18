@@ -8,7 +8,7 @@ Code: storage section of [gameStore.ts](../src/store/gameStore.ts), seat secret 
 
 | Key | Storage | Contents | Why there |
 | --- | --- | --- | --- |
-| `star-hop:settings` | `localStorage` | Auto roll, auto move, comeback dice, sound, theme | Preferences outlive the tab |
+| `star-hop:settings` | `localStorage` | Auto roll, auto move, undo, sound, volume, sound style, move buttons | Preferences outlive the tab |
 | `star-hop:game` | `localStorage` | `{ v, configs, initial, actions }` for a local game | A refresh, or tomorrow, resumes it |
 | `star-hop:last-setup` | `localStorage` | The seats used last time | Prefills the setup screen |
 | `star-hop:seat:<hostId>` | `sessionStorage` | An online guest's seat secret | Survives a refresh in that tab, not other tabs. Two tabs must not claim the same seat |
@@ -95,11 +95,10 @@ function loadSettings(): Settings {
   const parsed = readJson(SETTINGS_KEY)
   const settings = { ...DEFAULT_SETTINGS }
   if (isObject(parsed)) {
-    for (const key of ['autoRoll', 'autoMove', 'comebackDice', 'sound'] as const) {
+    for (const key of ['autoRoll', 'autoMove', 'undo', 'sound'] as const) {
       const value = parsed[key]
       if (typeof value === 'boolean') settings[key] = value
     }
-    if (THEMES.includes(parsed.theme as Theme)) settings.theme = parsed.theme as Theme
   }
   return settings
 }

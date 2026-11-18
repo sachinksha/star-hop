@@ -1,12 +1,10 @@
 import { useId, useState } from 'react'
 import { previewSound } from '../audio/sfx'
 import { SOUND_LABEL, SOUND_NAMES, SOUND_THEME_IDS, SOUND_THEMES } from '../audio/themes'
-import { DEFAULT_SETTINGS, MOVE_BUTTONS, THEMES, useGameStore, type MoveButtons, type Settings, type Theme, type ToggleSetting } from '../store/gameStore'
-import { Icon, type IconName } from './Icons'
+import { DEFAULT_SETTINGS, MOVE_BUTTONS, useGameStore, type MoveButtons, type Settings, type ToggleSetting } from '../store/gameStore'
+import { Icon } from './Icons'
 import { Sheet } from './Sheet'
 
-const THEME_LABEL: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark' }
-const THEME_ICON: Record<Theme, IconName> = { system: 'monitor', light: 'sun', dark: 'moon' }
 const MOVE_BUTTONS_LABEL: Record<MoveButtons, string> = { auto: 'On phones', on: 'Always', off: 'Never' }
 
 /** One on/off preference: label and hint on the left, a switch on the right. */
@@ -47,13 +45,11 @@ function Segmented<K extends keyof Settings>({
   label,
   options,
   optionLabel,
-  icon,
 }: {
   setting: K
   label: string
   options: readonly Settings[K][]
   optionLabel: (v: Settings[K]) => string
-  icon?: (v: Settings[K]) => IconName
 }) {
   const value = useGameStore((s) => s.settings[setting])
   const updateSettings = useGameStore((s) => s.updateSettings)
@@ -65,7 +61,6 @@ function Segmented<K extends keyof Settings>({
         {options.map((v) => (
           <label key={String(v)} className="segment">
             <input type="radio" name={name} checked={value === v} onChange={() => updateSettings({ [setting]: v } as Partial<Settings>)} />
-            {icon && <Icon name={icon(v)} size={16} />}
             <span>{optionLabel(v)}</span>
           </label>
         ))}
@@ -165,11 +160,6 @@ export function SettingsContent() {
         <h3 id="settings-sound">Sound</h3>
         <SwitchRow setting="sound" label="Sound effects" />
         <SoundThemePicker />
-      </section>
-
-      <section aria-labelledby="settings-look">
-        <h3 id="settings-look">Look</h3>
-        <Segmented setting="theme" label="Theme" options={THEMES} optionLabel={(v) => THEME_LABEL[v]} icon={(v) => THEME_ICON[v]} />
       </section>
 
       <section aria-labelledby="settings-reset">

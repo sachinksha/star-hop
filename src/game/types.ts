@@ -29,6 +29,8 @@ export interface HouseRules {
 }
 
 export const NO_HOUSE_RULES: HouseRules = { rollSixesFirst: false, crossCentre: false, safeStarts: false }
+/** Every house rule on: how the game is played. New games always use these. */
+export const ALL_HOUSE_RULES: HouseRules = { rollSixesFirst: true, crossCentre: true, safeStarts: true }
 export const HOUSE_RULE_KEYS: readonly (keyof HouseRules)[] = ['rollSixesFirst', 'crossCentre', 'safeStarts']
 
 /** Number of marbles each player owns. */

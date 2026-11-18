@@ -2,12 +2,19 @@ import { useState } from 'react'
 import { ENTRY_ROLLS } from '../game/board'
 import { BASE_ENTRY_CHANCE, BONUS_ROLL, COMEBACK_CAP, COMEBACK_GRACE, COMEBACK_STEP } from '../game/engine'
 import { IS_TOUCH } from '../hooks/useShortcuts'
+import { ALL_HOUSE_RULES, type HouseRules } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { Icon } from './Icons'
-import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { Sheet } from './Sheet'
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
+
+/** Rules a game saved by an older version may have been started without. */
+const RULE_NAMES: readonly [keyof HouseRules, string][] = [
+  ['rollSixesFirst', 'rolling all your sixes first'],
+  ['crossCentre', 'walking across the centre'],
+  ['safeStarts', 'safe start holes'],
+]
 const [ENTRY_LOW, ENTRY_HIGH] = ENTRY_ROLLS
 
 /**
@@ -15,13 +22,18 @@ const [ENTRY_LOW, ENTRY_HIGH] = ENTRY_ROLLS
  * the text cannot drift from what the game actually does.
  */
 export function RulesContent() {
-  const comebackDice = useGameStore((s) => s.settings.comebackDice)
-  // In a game, the rules it was started with; on setup, the rules a new game would use.
-  const houseRules = useGameStore((s) => s.game?.rules ?? s.settings.houseRules)
+  // Every new game uses these rules. A game saved by an older version may have some off.
+  const rules = useGameStore((s) => s.game?.rules ?? ALL_HOUSE_RULES)
+  const missing = RULE_NAMES.filter(([key]) => !rules[key]).map(([, name]) => name)
   const tap = IS_TOUCH ? 'Tap' : 'Click'
 
   return (
     <div className="rules">
+      {missing.length > 0 && (
+        <p className="rules-note">
+          This game was started by an older version, without: {missing.join(', ')}. The rules below describe new games.
+        </p>
+      )}
       <section aria-labelledby="rules-short">
         <h3 id="rules-short">The short version</h3>
         <ol className="rules-steps">
@@ -39,11 +51,18 @@ export function RulesContent() {
       <section aria-labelledby="rules-turn">
         <h3 id="rules-turn">Your turn</h3>
         <ul>
-          <li>Roll the die, then move one marble by exactly that many holes.</li>
           <li>
-            A <b>{BONUS_ROLL}</b> gives you another roll, even if you couldn't move.
+            Roll the die. A <b>{BONUS_ROLL}</b> means roll again straight away, and keep going until you roll something else.
           </li>
-          <li>If you can move, you must. If no marble can move, your turn passes.</li>
+          <li>
+            Then use your dice one at a time, in the order you choose. Each die moves one marble, any marble, by exactly that
+            many holes.
+          </li>
+          <li>
+            If a die can be used, you must use one. A die no marble can use is lost, so plan the order. If no die can be used,
+            your turn passes.
+          </li>
+          <li>Bringing your last marble home ends your turn, even with dice left.</li>
         </ul>
       </section>
 
@@ -54,8 +73,12 @@ export function RulesContent() {
           <li>You can jump over other players' marbles, but never over your own.</li>
           <li>You can't land on your own marble.</li>
           <li>
-            Land exactly on an opponent and it goes back to its base. Marbles are only safe in <b>base</b> and <b>home</b>, so
-            start holes, stars and the centre are all fair game.
+            Land exactly on an opponent and it goes back to its base. Marbles are safe in <b>base</b>, in <b>home</b>, and on
+            their <b>own start hole</b>. Stars and the centre are fair game.
+          </li>
+          <li>
+            Another player can land on your start hole and share it with you, but they aren't safe there: your next marble
+            coming out of base bumps them, and so does anyone else landing there.
           </li>
         </ul>
       </section>
@@ -64,9 +87,14 @@ export function RulesContent() {
         <h3 id="rules-stars">Star shortcuts</h3>
         <ul>
           <li>
-            If your marble <b>starts its turn on a star</b>, it can hop clockwise from star to star. Each star counts as 1.
+            If your marble <b>starts its turn on a star</b>, it can hop clockwise from star to star, or step into the centre
+            and out to any star, in any mix. Each step counts as 1.
           </li>
-          <li>Stop on any star, or stop on one and walk the rest of your roll down that star's arm.</li>
+          <li>It can never step straight back to the hole it just left.</li>
+          <li>
+            Stop on any star, end in the centre, or stop on a star and walk the rest of your roll down that star's arm. You can
+            even come back to where you started.
+          </li>
           <li>Walking past a star doesn't count: you must begin the turn on it.</li>
           <li>You can circle the stars as long as you like, even past your own home.</li>
         </ul>
@@ -76,11 +104,12 @@ export function RulesContent() {
         <h3 id="rules-centre">The centre</h3>
         <ul>
           <li>
-            <b>Getting in:</b> from a star your marble is sitting on, roll exactly a 1. Or, while walking, if your last step
-            would leave a star, you can take it into the centre instead.
+            <b>Getting in:</b> from a star your marble starts on, step in as part of a star walk (above). Or, while walking
+            round the board, if your last step would leave a star, you can take it into the centre instead.
           </li>
           <li>
-            <b>Getting out:</b> roll a 1 and jump to any star you like (one without your own marble on it).
+            <b>Getting out:</b> a marble that starts its turn in the centre needs a 1, and jumps to any star you like (one
+            without your own marble on it).
           </li>
         </ul>
       </section>
@@ -111,7 +140,7 @@ export function RulesContent() {
           <li>
             Once your marbles are all home you keep taking turns for your team. <b>Before you roll</b>, choose which
             teammate the roll is for, then move their marble. You can also <b>pass</b> if a roll might do more harm
-            than good. Your choice holds for the whole turn: a {BONUS_ROLL} rolls again for the same teammate. If your
+            than good. Your choice holds for the whole turn, including the extra rolls after a {BONUS_ROLL}. If your
             move gets them home, the turn ends there.
           </li>
           <li>Online, your teammates can suggest who you should roll for. Their suggestions show on your buttons; you decide.</li>
@@ -120,43 +149,12 @@ export function RulesContent() {
       </section>
 
       <section aria-labelledby="rules-comeback">
-        <h3 id="rules-comeback">
-          Comeback dice <span className="rules-tag">{comebackDice ? 'On' : 'Off'}</span>
-        </h3>
+        <h3 id="rules-comeback">Comeback dice</h3>
         <p>
           If you have nothing on the board and miss {COMEBACK_GRACE} entry rolls in a row, your chance of a {ENTRY_LOW} or{' '}
           {ENTRY_HIGH} goes up by {pct(COMEBACK_STEP)} for each further miss, up to {pct(COMEBACK_CAP)} (normally it's{' '}
-          {pct(BASE_ENTRY_CHANCE)}). It applies to bots too, and you can turn it off on the setup screen.
+          {pct(BASE_ENTRY_CHANCE)}). It applies to bots too.
         </p>
-      </section>
-
-      <section aria-labelledby="rules-house">
-        <h3 id="rules-house">House rules</h3>
-        <p>Optional rules, chosen on the setup screen and fixed for the whole game.</p>
-        <ul className="rules-house">
-          <li>
-            <b>{HOUSE_RULE_TEXT.rollSixesFirst.title}</b> <span className="rules-tag">{houseRules.rollSixesFirst ? 'On' : 'Off'}</span>
-            <br />
-            After a {BONUS_ROLL}, roll again straight away, and keep going until you roll something else. Then use every die,
-            one at a time, on any marbles, in the order you choose. A die no marble can use is lost, so plan the order. Bringing
-            a marble home ends your turn, even with dice left.
-          </li>
-          <li>
-            <b>{HOUSE_RULE_TEXT.crossCentre.title}</b> <span className="rules-tag">{houseRules.crossCentre ? 'On' : 'Off'}</span>
-            <br />
-            A marble that <b>starts its turn on a star</b> may step into the centre and out to any star, as well as round the
-            stars, in any mix, counting each step. It can never step straight back to the hole it just left. It can stop on a
-            star, walk the rest down that star's arm, end in the centre, or even come back to where it started. A marble that
-            starts in the centre still needs a 1 to leave.
-          </li>
-          <li>
-            <b>{HOUSE_RULE_TEXT.safeStarts.title}</b> <span className="rules-tag">{houseRules.safeStarts ? 'On' : 'Off'}</span>
-            <br />
-            Only the owner is safe on a start hole: your marble can't be bumped off your own start. Another player can land
-            there and share it with you, but they aren't safe: your next marble coming out of base bumps them, and so does any
-            other player landing there. Nobody can share a hole with their own marble.
-          </li>
-        </ul>
       </section>
 
       <section aria-labelledby="rules-controls">

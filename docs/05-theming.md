@@ -1,5 +1,7 @@
 # 5. Theming with design tokens
 
+> **Current state:** the light theme and the theme setting have been removed for now; the game ships the dark look only, with its colours as the plain `:root` tokens in [index.css](../src/index.css). This chapter describes the three-theme version (see git history before the removal) and still applies if a light theme comes back.
+
 Star Hop has three themes: **System** (follows the device), **Light** and **Dark**, with the choice remembered. It is implemented with CSS custom properties, a small inline script, and no CSS-in-JS. Theming is a frequent design-system interview topic ("how would you add dark mode to a large app?", "how do you theme a component library for several brands?").
 
 Code: top of [index.css](../src/index.css), `applyTheme` and settings in [gameStore.ts](../src/store/gameStore.ts), the inline script in [index.html](../index.html), the Theme control in [SettingsSheet.tsx](../src/components/SettingsSheet.tsx).

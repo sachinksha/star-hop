@@ -4,8 +4,7 @@ export { COLOR_NAME } from '../game/describe'
 
 /**
  * Each player's colour for marbles, panels and home holes, as a CSS value.
- * The colours themselves are theme tokens in index.css (--player-*): pastels
- * on the light board, strong colours on the dark one. Use them through CSS
+ * The colours themselves are tokens in index.css (--player-*). Use them through CSS
  * (usually as --arm); they are not hex strings.
  */
 export const PLAYER_COLOR: Record<Color, string> = {

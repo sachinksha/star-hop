@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { startIndex } from '../game/board'
 import { game, loop, place } from '../game/testUtils'
@@ -52,23 +52,24 @@ describe('DicePool (R22)', () => {
 })
 
 describe('house rules on setup and in the rules', () => {
-  it('starts with every house rule on, lets setup turn them off, and starts the game with the choice', () => {
-    const onStart = vi.fn()
-    render(<SetupScreen onStart={onStart} />)
-    const group = screen.getByRole('group', { name: 'House rules' })
-    expect(within(group).getByRole('checkbox', { name: /Walk across the centre/ })).toBeChecked()
-    fireEvent.click(within(group).getByRole('checkbox', { name: /Walk across the centre/ }))
-    expect(useGameStore.getState().settings.houseRules).toEqual({ rollSixesFirst: true, crossCentre: false, safeStarts: true })
+  it('has no house rule switches on setup: new games use every house rule', () => {
+    render(<SetupScreen onStart={vi.fn()} />)
+    expect(screen.queryByRole('group', { name: 'House rules' })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /Comeback dice/ })).toBeNull()
     useGameStore.getState().start([{ color: 'red', kind: 'human' }, { color: 'blue', kind: 'bot' }], () => 0)
-    expect(useGameStore.getState().game!.rules).toEqual({ rollSixesFirst: true, crossCentre: false, safeStarts: true })
+    expect(useGameStore.getState().game!.rules).toEqual({ rollSixesFirst: true, crossCentre: true, safeStarts: true })
   })
 
-  it('shows which house rules the current game uses', () => {
-    useGameStore.getState().updateSettings({ houseRules: { rollSixesFirst: false, crossCentre: true, safeStarts: false } })
-    render(<RulesContent />)
-    const section = screen.getByRole('heading', { name: 'House rules' }).closest('section')!
-    const items = within(section).getAllByRole('listitem')
-    expect(items.map((li) => li.querySelector('.rules-tag')!.textContent)).toEqual(['Off', 'On', 'Off'])
+  it('explains the house rules as the rules of the game, and notes any an older saved game lacks', () => {
+    const { container } = render(<RulesContent />)
+    expect(screen.queryByRole('heading', { name: 'House rules' })).toBeNull()
+    expect(container).toHaveTextContent('keep going until you roll something else')
+    expect(container).toHaveTextContent('step into the centre and out to any star')
+    expect(container).toHaveTextContent('on their own start hole')
+    expect(container.querySelector('.rules-note')).toBeNull()
+    const g = game()
+    act(() => useGameStore.setState({ game: { ...g, rules: { rollSixesFirst: false, crossCentre: true, safeStarts: false } } }))
+    expect(container.querySelector('.rules-note')).toHaveTextContent('without: rolling all your sixes first, safe start holes.')
   })
 })
 

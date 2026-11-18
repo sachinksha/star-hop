@@ -21,7 +21,8 @@ const ENTER: GameAction[] = [
 beforeEach(() => {
   store().abort()
   // These tests use the standard rules; the house rules have tests of their own.
-  store().updateSettings({ ...DEFAULT_SETTINGS, houseRules: NO_HOUSE_RULES })
+  store().updateSettings(DEFAULT_SETTINGS)
+  useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
   window.localStorage.clear()
 })
 
@@ -88,41 +89,12 @@ describe('game store: settings', () => {
   })
 })
 
-describe('game store: theme', () => {
-  it('defaults to the system theme, with no override on the page', () => {
-    expect(store().settings.theme).toBe('system')
-    expect(document.documentElement.dataset.theme).toBeUndefined()
-  })
-
-  it('applies and saves light and dark, and clears the override for system', () => {
-    store().updateSettings({ theme: 'dark' })
-    expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(JSON.parse(window.localStorage.getItem(SETTINGS_KEY)!).theme).toBe('dark')
-    store().updateSettings({ theme: 'light' })
-    expect(document.documentElement.dataset.theme).toBe('light')
-    store().updateSettings({ theme: 'system' })
-    expect(document.documentElement.dataset.theme).toBeUndefined()
-  })
-
-  it('restores a saved theme on load and ignores an unknown one', async () => {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'dark', sound: false }))
-    vi.resetModules()
-    let fresh = (await import('./gameStore')).useGameStore.getState()
-    expect(fresh.settings).toMatchObject({ theme: 'dark', sound: false, autoRoll: false })
-    expect(document.documentElement.dataset.theme).toBe('dark')
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'neon' }))
-    vi.resetModules()
-    fresh = (await import('./gameStore')).useGameStore.getState()
-    expect(fresh.settings.theme).toBe('system')
-    fresh.updateSettings({ theme: 'system' })
-  })
-
+describe('game store: settings', () => {
   it('adds new settings without a version bump: old saves just lack the keys', async () => {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoRoll: false, theme: 'dark' }))
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoRoll: false }))
     vi.resetModules()
     let fresh = (await import('./gameStore')).useGameStore.getState()
-    expect(fresh.settings).toMatchObject({ autoRoll: false, soundTheme: 'tabla', volume: 0.8, moveButtons: 'auto', theme: 'dark' })
-    expect(fresh.settings.houseRules).toEqual({ rollSixesFirst: true, crossCentre: true, safeStarts: true })
+    expect(fresh.settings).toMatchObject({ autoRoll: false, soundTheme: 'tabla', volume: 0.8, moveButtons: 'auto' })
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ soundTheme: 'tabla', volume: 0.3, moveButtons: 'on' }))
     vi.resetModules()
     fresh = (await import('./gameStore')).useGameStore.getState()

@@ -40,7 +40,8 @@ const redSpot = (id: number) => store().game!.players.find((p) => p.color === ('
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
   store().abort()
-  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: false, houseRules: NO_HOUSE_RULES })
+  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: false })
+  useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
   window.localStorage.clear()
 })
 
@@ -55,6 +56,24 @@ describe('App', () => {
     const panels = screen.getAllByRole('listitem').filter((li) => li.classList.contains('panel'))
     expect(panels).toHaveLength(2)
     expect(screen.getByText('Your turn. Press Space or tap the die to roll.')).toBeInTheDocument()
+  })
+
+  it('keeps a row under the board for the move buttons, whether or not any are showing', () => {
+    store().updateSettings({ moveButtons: 'on' })
+    startTwoPlayer([])
+    const slot = document.querySelector('.pad-slot')!
+    expect(within(slot as HTMLElement).getByRole('button', { name: /Roll/ })).toBeInTheDocument()
+    rollNext(3) // no marble out: no move, and the bot plays
+    fireEvent.click(within(slot as HTMLElement).getByRole('button', { name: /Roll/ }))
+    advance(TIMINGish)
+    expect(document.querySelector('.pad-slot')).toBe(slot)
+    expect(within(slot as HTMLElement).queryByRole('button')).toBeNull()
+  })
+
+  it('keeps the move button row off when move buttons are off', () => {
+    store().updateSettings({ moveButtons: 'off' })
+    startTwoPlayer([])
+    expect(document.querySelector('.pad-slot')).toBeNull()
   })
 
   it('plays a whole choice by keyboard: Space, a marble number, then a destination number', () => {
@@ -98,18 +117,10 @@ describe('App', () => {
     expect(screen.getByTestId('announcer')).toHaveTextContent('Red has no legal move')
   })
 
-  it('changes the theme and sound style from the settings on setup', () => {
+  it('changes the sound style from the settings on setup', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     const sheet = screen.getByRole('dialog', { name: 'Settings' })
-    expect(within(sheet).getByRole('radio', { name: 'System' })).toBeChecked()
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Light' }))
-    expect(document.documentElement.dataset.theme).toBe('light')
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Dark' }))
-    expect(document.documentElement.dataset.theme).toBe('dark')
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'System' }))
-    expect(document.documentElement.dataset.theme).toBeUndefined()
-
     fireEvent.click(within(sheet).getByRole('radio', { name: /Tabla/ }))
     expect(store().settings.soundTheme).toBe('tabla')
     fireEvent.click(within(sheet).getByRole('button', { name: 'Play a sample of Sitar' }))
@@ -203,7 +214,6 @@ describe('App', () => {
 
   it('steps through marbles and holes with the arrow keys, Enter to choose: any number of destinations', () => {
     // Red on a star with crossing the centre on: a 3 offers more than nine destinations.
-    act(() => store().updateSettings({ houseRules: { rollSixesFirst: false, crossCentre: true, safeStarts: false } }))
     startTwoPlayer([loop(14)])
     act(() => {
       const g = store().game!

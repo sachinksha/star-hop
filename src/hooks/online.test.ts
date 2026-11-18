@@ -39,7 +39,8 @@ beforeEach(() => {
   network = new MemoryNetwork()
   configureOnline({ network, baseUrl: () => 'https://star-hop.test/' })
   // The standard rules: these tests are about the network, not the house rules.
-  useGameStore.getState().updateSettings({ autoRoll: false, houseRules: NO_HOUSE_RULES })
+  useGameStore.getState().updateSettings({ autoRoll: false })
+  useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
 })
 
 afterEach(() => {

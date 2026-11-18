@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { armOf } from '../game/board'
 import { hasTeams, isHelperTurn, teamStandings } from '../game/teams'
-import { HOUSE_RULE_KEYS } from '../game/types'
 import { formatClock, useGameClock } from '../hooks/useGameClock'
 import { useGuestView, useHostView } from '../hooks/useOnline'
 import { IS_TOUCH, useShortcuts } from '../hooks/useShortcuts'
@@ -13,7 +12,6 @@ import { PLAYER_COLOR } from './colors'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Die } from './Dice'
 import { DicePool } from './DicePool'
-import { HOUSE_RULE_TEXT } from './houseRuleText'
 import { FinishBanner } from './FinishBanner'
 import { GameLog, KeyboardHelp } from './GameLog'
 import { Icon } from './Icons'
@@ -251,8 +249,8 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
 
   const lastEvents = game.events
   const oops = lastEvents.find((e) => e.type === 'noMoves')
-  // Phones (touch, or a narrow window) get short prompts: the dice row already shows the
-  // dice, and a prompt that never grows past two lines keeps the board from jumping.
+  // Phones (touch, or a narrow window) get short prompts that fit the two lines kept for
+  // them. The prompt box has a fixed height everywhere (see .prompt), so it never moves the page.
   const compact = IS_TOUCH || phoneSized
   const helping = mover.color !== current.color
   let prompt: string
@@ -264,7 +262,9 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
     const roller = who.name === 'You' ? 'You' : who.name
     prompt = oops.unused
       ? `Oops! ${roller} can't use the ${oops.unused.join(', ')}.`
-      : `Oops! ${roller} rolled a ${who.lastRoll} with no legal move.${oops.rollAgain ? ' A 6 rolls again.' : ''}`
+      : compact
+        ? `Oops! ${roller} can't move with a ${who.lastRoll}.${oops.rollAgain ? ' Roll again.' : ''}`
+        : `Oops! ${roller} rolled a ${who.lastRoll} with no legal move.${oops.rollAgain ? ' A 6 rolls again.' : ''}`
   } else if (busy) prompt = 'Moving...'
   else if (celebration) prompt = celebration.name === 'You' ? 'You got all your marbles home!' : `${celebration.name} got all their marbles home!`
   else if (helperTurn && helperChoices.length > 0)
@@ -344,54 +344,63 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         </ol>
 
         <div className={`table${paused ? ' table-paused' : ''}`}>
-          <Board
-            players={shownPlayers}
-            bottom={bottom}
-            activeColor={gameOver ? null : mover.color}
-            pickable={pickable}
-            selected={canPick ? selected : null}
-            destinations={canPick ? destinations : []}
-            showNumbers={humanTurn && (!IS_TOUCH || (showPad && canPick))}
-            padTarget={canPick ? padTarget : null}
-            lastMove={lastMove}
-            onPickMarble={(id) => (selected === id ? cancelSelection() : pick(id))}
-            onChooseMove={playMove}
-          />
-          {showPad && canPick && (
-            <MovePad
-              player={mover}
-              players={game.players}
+          <div className="board-stage">
+            <Board
+              players={shownPlayers}
+              bottom={bottom}
+              activeColor={gameOver ? null : mover.color}
               pickable={pickable}
-              selected={selected}
-              destinations={destinations}
-              movesFor={movesFor}
-              onPickMarble={(id) => {
-                setPadTarget(null)
-                pick(id)
-              }}
-              onChooseMove={(move) => {
-                setPadTarget(null)
-                playMove(move)
-              }}
-              onBack={cancelSelection}
-              onPreview={setPadTarget}
+              selected={canPick ? selected : null}
+              destinations={canPick ? destinations : []}
+              showNumbers={humanTurn && (!IS_TOUCH || (showPad && canPick))}
+              padTarget={canPick ? padTarget : null}
+              lastMove={lastMove}
+              onPickMarble={(id) => (selected === id ? cancelSelection() : pick(id))}
+              onChooseMove={playMove}
             />
-          )}
-          {showPad && canRoll && !autoRoll && (
-            <div className="move-pad">
-              <button type="button" className="pad-button pad-roll primary" onClick={roll}>
-                <Icon name="dice" /> Roll
-              </button>
-            </div>
-          )}
-          {celebration && <FinishBanner key={celebration.color} {...celebration} />}
-          {paused && (
-            <div className="pause-veil" role="status">
-              <p>{isGuest ? 'The host paused the game' : 'Game paused'}</p>
-              {canPause && (
-                <button type="button" className="primary" onClick={togglePause}>
-                  <Icon name="play" /> <span>Resume</span>
-                </button>
+            {celebration && <FinishBanner key={celebration.color} {...celebration} />}
+            {paused && (
+              <div className="pause-veil" role="status">
+                <p>{isGuest ? 'The host paused the game' : 'Game paused'}</p>
+                {canPause && (
+                  <button type="button" className="primary" onClick={togglePause}>
+                    <Icon name="play" /> <span>Resume</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {/* With move buttons on, one row under the board is always kept for them (Roll, the
+              marbles, or a few destinations), so they appear without pushing the page down.
+              Only a long list of destinations (from a star) adds rows. */}
+          {showPad && (
+            <div className="pad-slot">
+              {canPick && (
+                <MovePad
+                  player={mover}
+                  players={game.players}
+                  pickable={pickable}
+                  selected={selected}
+                  destinations={destinations}
+                  movesFor={movesFor}
+                  onPickMarble={(id) => {
+                    setPadTarget(null)
+                    pick(id)
+                  }}
+                  onChooseMove={(move) => {
+                    setPadTarget(null)
+                    playMove(move)
+                  }}
+                  onBack={cancelSelection}
+                  onPreview={setPadTarget}
+                />
+              )}
+              {canRoll && !autoRoll && (
+                <div className="move-pad">
+                  <button type="button" className="pad-button pad-roll primary" onClick={roll}>
+                    <Icon name="dice" /> Roll
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -408,7 +417,7 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
             />
             {/* A short hint replaces the prompt for a moment rather than adding a row. */}
             <p className={`prompt${shownHint ? ' prompt-hint' : ''}`} aria-live="polite">
-              {shownHint ?? prompt}
+              <span className="prompt-text">{shownHint ?? prompt}</span>
             </p>
             {/* One reserved row for whatever the turn needs: banked dice, a die to choose, or
                 a teammate to roll for. Its height never changes, so the board never jumps. */}
@@ -459,7 +468,6 @@ export function GameScreen({ hop }: { hop: StarHopController }) {
         onClose={closeSheet}
         role={role}
         canRestart={configs !== null || role === 'host'}
-        rulesText={HOUSE_RULE_KEYS.filter((k) => game.rules?.[k]).map((k) => HOUSE_RULE_TEXT[k].title).join(', ') || 'none'}
         onRestart={fromMenu(requestNew)}
         onLeave={fromMenu(requestSettings)}
       />

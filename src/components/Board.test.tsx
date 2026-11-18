@@ -29,6 +29,20 @@ function renderBoard(selected: number | null, onPick = vi.fn(), onChoose = vi.fn
 }
 
 describe('Board', () => {
+  it('sweeps a gleam across the active player\'s base, restarting only when the turn passes to someone else', () => {
+    const g = onStar()
+    const props = { players: g.players, bottom: 0, pickable: [], selected: null, destinations: [], showNumbers: false, onPickMarble: vi.fn(), onChooseMove: vi.fn() }
+    const { rerender } = render(<Board {...props} activeColor="red" />)
+    const first = screen.getByTestId('base-gleam')
+    expect(first.closest('g')!.getAttribute('clip-path')).toMatch(/^url\(#/)
+    rerender(<Board {...props} activeColor="red" />)
+    expect(screen.getByTestId('base-gleam')).toBe(first) // a bonus roll: same element, no replay
+    rerender(<Board {...props} activeColor="blue" />)
+    expect(screen.getByTestId('base-gleam')).not.toBe(first) // a new player: a fresh sweep
+    rerender(<Board {...props} activeColor={null} />)
+    expect(screen.queryByTestId('base-gleam')).toBeNull()
+  })
+
   it('makes only pickable marbles into buttons', () => {
     const onPick = vi.fn()
     renderBoard(null, onPick)

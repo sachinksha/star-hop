@@ -9,7 +9,6 @@ interface GameMenuProps {
   /** A local game with known seats (or a host) can restart. */
   canRestart: boolean
   /** The house rules this game uses, in words. */
-  rulesText: string
   onRestart: () => void
   /** Local: back to setup. Host: end the online game. Guest: leave. */
   onLeave: () => void
@@ -32,7 +31,7 @@ function Choice({ icon, title, detail, onClick, danger, disabled }: { icon: Icon
  * toolbar's Game button. Each choice says exactly what it keeps and what it
  * throws away, and the screen still asks before discarding a game in progress.
  */
-export function GameMenu({ open, onClose, role, canRestart, rulesText, onRestart, onLeave }: GameMenuProps) {
+export function GameMenu({ open, onClose, role, canRestart, onRestart, onLeave }: GameMenuProps) {
   return (
     <Sheet open={open} onClose={onClose} title="Game">
       <div className="game-menu">
@@ -50,11 +49,10 @@ export function GameMenu({ open, onClose, role, canRestart, rulesText, onRestart
             {role === 'host' ? (
               <Choice icon="close" title="End the online game" detail="Ends it for everyone and closes the invite link." onClick={onLeave} danger />
             ) : (
-              <Choice icon="list" title="Set up a new game" detail="Back to setup to choose players, seats, teams and house rules." onClick={onLeave} />
+              <Choice icon="list" title="Set up a new game" detail="Back to setup to choose players, seats and teams." onClick={onLeave} />
             )}
           </>
         )}
-        <p className="setting-hint">House rules in this game: {rulesText}.</p>
       </div>
     </Sheet>
   )

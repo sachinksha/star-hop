@@ -1,5 +1,7 @@
 # 15. When requirements change: adding house rules
 
+> **Current state:** the house rules and comeback dice are now always on; the setup switches and the saved settings for them were removed. The engine still takes a `HouseRules` value (new games get `ALL_HOUSE_RULES`, older saved games keep the rules they started with), so everything below about the engine, bots and tests still holds. The parts about setup checkboxes and settings describe the earlier version.
+
 Every codebase meets a request like this one: "here are the rules we actually played as children; add them as options". Three new rules, one change to an existing rule, edge cases nobody had written down. This chapter follows that request through every layer of Star Hop: specification, data model, rules engine, bots, controller hook, UI, persistence and network. Then it draws out what an interviewer wants to hear when they ask "how did your design cope with change?".
 
 The rules themselves are in the README (R22–R24) and in [LEARNINGS.md](../LEARNINGS.md). Code: [rules.ts](../src/game/rules.ts), [engine.ts](../src/game/engine.ts), the planner in [bot.ts](../src/game/bot.ts), [useStarHopGame.ts](../src/hooks/useStarHopGame.ts), [DicePool.tsx](../src/components/DicePool.tsx), tests in [houseRules.test.ts](../src/game/houseRules.test.ts).

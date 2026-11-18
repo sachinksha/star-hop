@@ -228,12 +228,6 @@ describe('SetupScreen', () => {
     expect(onStart).toHaveBeenCalledWith([{ color: 'red', kind: 'bot' }, { color: 'green', kind: 'human', you: true }], false)
   })
 
-  it('switches comeback dice in the saved settings', () => {
-    render(<SetupScreen onStart={vi.fn()} />)
-    fireEvent.click(screen.getByRole('checkbox', { name: /Comeback dice/ }))
-    expect(useGameStore.getState().settings.comebackDice).toBe(false)
-  })
-
   it('offers teams for 4 and 6 players, alternating seats round the board', () => {
     const onStart = vi.fn()
     render(<SetupScreen onStart={onStart} />)

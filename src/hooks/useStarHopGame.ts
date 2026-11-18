@@ -353,13 +353,13 @@ export function useStarHopGame(rng: Rng = secureRandom): StarHopController {
    */
   const performRoll = useCallback(
     (forColor?: Color) => {
-      const { game: g, paused: isPaused, settings } = useGameStore.getState()
+      const { game: g, paused: isPaused } = useGameStore.getState()
       if (busyRef.current || isPaused || !g || g.phase !== 'roll') return
       const seat = g.players[g.currentIndex]!
       const choosing = isHelperTurn(g)
       if (choosing && !helperTargets(g).some((p) => p.color === forColor)) return
       const target = choosing ? forColor : (g.playingFor ?? undefined)
-      const value = rollFor(g, rng, settings.comebackDice, target)
+      const value = rollFor(g, rng, true, target)
       submit(choosing ? { type: 'roll', value, actor: seat.kind, for: forColor } : { type: 'roll', value, actor: seat.kind })
     },
     [rng, submit],

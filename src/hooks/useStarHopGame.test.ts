@@ -58,7 +58,8 @@ beforeEach(() => {
   vi.mocked(playSound).mockClear()
   store().abort()
   // These tests cover the automation, so it starts on; tests that need it off say so.
-  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: true, autoMove: true, houseRules: NO_HOUSE_RULES })
+  store().updateSettings({ ...DEFAULT_SETTINGS, autoRoll: true, autoMove: true })
+  useGameStore.setState({ newGameRules: NO_HOUSE_RULES })
 })
 
 afterEach(() => {
@@ -355,7 +356,8 @@ describe('house rule: roll all the sixes first (R22)', () => {
   const SIXES = { rollSixesFirst: true, crossCentre: false, safeStarts: false }
 
   it('banks sixes, then lets the player choose which die to use first', () => {
-    store().updateSettings({ autoMove: false, houseRules: SIXES })
+    store().updateSettings({ autoMove: false })
+    useGameStore.setState({ newGameRules: SIXES })
     seed(TWO, { red: [loop(30)] })
     const rng = diceSequence([6, 3], 2)
     const { result } = renderHook(() => useStarHopGame(rng))
@@ -376,7 +378,8 @@ describe('house rule: roll all the sixes first (R22)', () => {
   })
 
   it('ignores a request for a die that has no move', () => {
-    store().updateSettings({ autoMove: false, houseRules: SIXES })
+    store().updateSettings({ autoMove: false })
+    useGameStore.setState({ newGameRules: SIXES })
     seed(TWO, { red: [loop(30)] })
     const rng = diceSequence([6, 3], 2) // once, not per render
     const { result } = renderHook(() => useStarHopGame(rng))
@@ -385,11 +388,11 @@ describe('house rule: roll all the sixes first (R22)', () => {
     expect(result.current.selectedDie).toBe(6)
   })
 
-  it('new games use the house rules from settings, and keep them', () => {
-    store().updateSettings({ houseRules: SIXES })
+  it('a game keeps the rules it started with', () => {
+    useGameStore.setState({ newGameRules: SIXES })
     store().start(TWO, () => 0)
     expect(store().game!.rules).toEqual(SIXES)
-    store().updateSettings({ houseRules: { ...SIXES, rollSixesFirst: false } })
+    useGameStore.setState({ newGameRules: { ...SIXES, rollSixesFirst: false } })
     expect(store().game!.rules).toEqual(SIXES)
   })
 })
