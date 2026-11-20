@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "wiki:sync": "node scripts/sync-wiki.mjs"
   },
   "dependencies": {
     "peerjs": "^1.5.5",
