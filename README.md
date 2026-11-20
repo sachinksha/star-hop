@@ -160,6 +160,8 @@ The design is the same as the Ludo game's (see `LEARNINGS.md` in that project):
 
 ## Learning guide
 
+New to the codebase, or to JavaScript, TypeScript, React, Vite, testing or game development? Start with the [onboarding track](docs/onboarding/README.md): a self-paced walkthrough and handover guide that assumes no prior knowledge.
+
 [docs/](docs/README.md) is a study guide that uses this codebase to prepare for senior and principal frontend interviews. It builds on the Ludo game's guide and covers what is new here: graph-shaped domain modelling, SVG geometry, the native-`<dialog>` bottom sheet, a mobile debugging case study, theming, persistence, probability in the bots, React patterns, modern tooling, touch-target design, team play with collaborative online decisions, sound synthesis, settings design, and how the codebase adapted when house rules were added. [LEARNINGS.md](LEARNINGS.md) records the house rules precisely and how to carry them to the Ludo game.
 
 ## Licence

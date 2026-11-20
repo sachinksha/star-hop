@@ -4,6 +4,8 @@ This is the second study guide built on one of these games. The first, in the Lu
 
 Star Hop has a harder domain than Ludo: a board that is a graph rather than a line, moves that need a destination as well as a piece, six seats, and star shortcuts that can loop forever. It is drawn in SVG, themed with design tokens, saved across refreshes, and has a native-`<dialog>` bottom sheet with swipe to close. It is also written with this generation's toolchain. Each of those topics comes up in principal frontend interviews.
 
+> **New to JavaScript, TypeScript, React or game development?** Start with the [onboarding track](onboarding/README.md) instead. It assumes no prior knowledge, teaches the language, tools and codebase from zero, and ends where this guide begins.
+
 ## Before you start
 
 1. Read the Ludo guide's [README](../../ludo-game/docs/README.md) and chapters 1 to 4, or at least skim them. This guide assumes event sourcing and the action pipeline are familiar.
